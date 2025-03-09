@@ -3,6 +3,7 @@
 use App\Http\Controllers\Api\AuthController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
+use App\Http\Controllers\Api\CurrencyController;
 
 // Routes for AuthController using route::post in POSTMAN API
 Route::controller(AuthController::class)->group(function(){
@@ -14,3 +15,12 @@ Route::controller(AuthController::class)->group(function(){
     Route::post('/otp', 'otp')->name('api.auth.otp')->middleware('auth:sanctum');
     Route::post('/verify', 'verify')->name('api.auth.verify')->middleware('auth:sanctum');
 });
+
+Route::controller(CurrencyController::class)->group(function(){
+    Route::get('/currency', 'index')->name('api.currency.index')->middleware('auth:sanctum');
+
+});
+
+
+
+
