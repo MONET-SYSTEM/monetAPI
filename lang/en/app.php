@@ -29,6 +29,7 @@ return [
     'account_type' => 'Account Type',
     'accounts' => 'Accounts',
     'account' => 'Account',
+    'unauthenticated' => 'Unauthenticated!',
 
 
     'data_load_success' => ':data Loaded Successfully!',

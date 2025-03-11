@@ -31,8 +31,13 @@ class AccountController extends Controller
             'search' => 'nullable|string|max:255',
         ]);
 
-        // get accounts
-        $user = \Illuminate\Support\Facades\Auth::user();
+        /** @var User $user */
+        $user = Auth::user();
+
+        if (!$user) {
+            abort(401, __('app.unauthenticated'));
+        }
+
         $accounts = $this->accountService->getAccountsByUser($user, $request);
 
         // return
@@ -54,6 +59,11 @@ class AccountController extends Controller
         // get account
         /** @var User $user */
         $user = Auth::user();
+
+        if (!$user) {
+            abort(401, __('app.unauthenticated'));
+        }
+        
         $account = $this->accountService->getAccountByUserUuid($user, $id);
 
         // return
