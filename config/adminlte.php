@@ -63,7 +63,7 @@ return [
     |
     */
 
-    'logo' => '<b>Admin</b>LTE',
+    'logo' => '<b>MONET </b>ADMIN',
     'logo_img' => 'vendor/adminlte/dist/img/AdminLTELogo.png',
     'logo_img_class' => 'brand-image img-circle elevation-3',
     'logo_img_xl' => null,
@@ -327,6 +327,24 @@ return [
             'label' => 4,
             'label_color' => 'success',
         ],
+
+        [
+            'text'    => 'User Management',
+            'icon'    => 'fas fa-users',
+            'submenu' => [
+                [
+                    'text' => 'All Users',
+                    'url'  => 'admin/users', // This should match your route
+                    'icon' => 'fas fa-list',
+                ],
+                [
+                    'text' => 'Add User',
+                    'url'  => 'admin/users/create',
+                    'icon' => 'fas fa-plus',
+                ],
+            ],
+        ],
+
         ['header' => 'account_settings'],
         [
             'text' => 'profile',
