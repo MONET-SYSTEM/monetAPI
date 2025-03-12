@@ -4,31 +4,27 @@ use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Auth;
 use App\Http\Controllers\UserController;
 
-
-
+// The default route that shows the welcome page
 Route::get('/', function () {
     return view('welcome');
 });
 
-
-
-
+// Set up routes for user authentication (login, registration)
 Auth::routes();
 
+// Route for the home page after a user logs in
 Route::get('/home', [App\Http\Controllers\HomeController::class, 'index'])->name('home');
 
-Route::resource('admin/users', UserController::class)
-    ->middleware('auth')
-    ->names([
-        'index'   => 'admin.users.index',
-        'create'  => 'admin.users.create',
-        'store'   => 'admin.users.store',
-        'show'    => 'admin.users.show',
-        'edit'    => 'admin.users.edit',
-        'update'  => 'admin.users.update',
-        'destroy' => 'admin.users.destroy',
-    ]);
+// Define resourceful routes for user management under the admin panel
+// These routes are protected so only authenticated users can access them
+Route::resource('admin/users', UserController::class)->middleware('auth')->names([
 
-
-
-
+        'index'   => 'admin.users.index',   // List all users
+        'create'  => 'admin.users.create',  // Show form to create a new user
+        'store'   => 'admin.users.store',   // Save a new user
+        'show'    => 'admin.users.show',    // Display a specific user's details
+        'edit'    => 'admin.users.edit',    // Show form to edit a user
+        'update'  => 'admin.users.update',  // Update an existing user
+        'destroy' => 'admin.users.destroy', // Delete a user
+]);
+    

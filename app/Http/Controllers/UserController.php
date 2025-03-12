@@ -7,109 +7,95 @@ use Illuminate\Http\Request;
 
 class UserController extends Controller
 {
-    // Ensure only authorized users (e.g., admins) can access
+    // Only allow logged-in users to access these actions.
     public function __construct()
     {
         $this->middleware('auth');
-        // You can also use a custom 'admin' middleware if needed
-        // $this->middleware('admin');
     }
 
-    /**
-     * Display a listing of the resource.
-     */
+    // List all users.
     public function index()
     {
-        // Retrieve all users
+        // Get every user from the database.
         $all = User::all();
         
-        // Return the AdminLTE-styled index view
+        // Show the users list in the AdminLTE-styled view.
         return view('admin.users.index', compact('all'));
     }
 
-    /**
-     * Display the specified user information.
-     */
+    // Show details for a single user.
     public function show(User $user)
     {
-        // Return a view to display a single user's details
+        // Display a view with this user's details.
         return view('admin.users.show', compact('user'));
     }
 
-    /**
-     * Show the form for creating a new resource.
-     */
+    // Display the form to create a new user.
     public function create()
     {
-        // Return the create form
+        // Show the form for adding a new user.
         return view('admin.users.create');
     }
 
-    /**
-     * Store a newly created resource in storage.
-     */
+    // Save a new user to the database.
     public function store(Request $request)
     {
-        // Validate incoming data
+        // Check that the input data is valid.
         $request->validate([
             'name'     => 'required|string|max:255',
             'email'    => 'required|string|email|unique:users,email',
             'password' => 'required|string|min:6',
         ]);
 
-        // Create a new user
+        // Add a new user using the validated data.
         User::create([
             'name'     => $request->name,
             'email'    => $request->email,
             'password' => bcrypt($request->password),
         ]);
 
-        // Redirect back with a success message
+        // Redirect to the user list with a success message.
         return redirect()->route('admin.users.index')->with('success', 'User created successfully!');
     }
 
-    /**
-     * Show the form for editing the specified resource.
-     */
+    // Display the form to edit an existing user.
     public function edit(User $user)
     {
-        // Return the edit form
+        // Show the form pre-filled with the user's current data.
         return view('admin.users.edit', compact('user'));
     }
 
-    /**
-     * Update the specified resource in storage.
-     */
+    // Update an existing user's data.
     public function update(Request $request, User $user)
     {
-        // Validate incoming data
+        // Check that the updated data is valid.
         $request->validate([
             'name'     => 'required|string|max:255',
             'email'    => 'required|string|email|unique:users,email,'.$user->id,
             'password' => 'nullable|string|min:6',
         ]);
 
-        // Update user details
+        // Update the user's name and email.
         $user->name  = $request->name;
         $user->email = $request->email;
+        
+        // If a new password is provided, update it.
         if ($request->password) {
             $user->password = bcrypt($request->password);
         }
         $user->save();
 
-        // Redirect back with a success message
+        // Redirect to the user list with a success message.
         return redirect()->route('admin.users.index')->with('success', 'User updated successfully!');
     }
 
-    /**
-     * Remove the specified resource from storage.
-     */
+    // Delete a user.
     public function destroy(User $user)
     {
-        // Delete user
+        // Remove the user from the database.
         $user->delete();
 
-        // Redirect back with a success message
+        // Redirect back to the user list with a success message.
         return redirect()->route('admin.users.index')->with('success', 'User deleted successfully!');
     }
 }
