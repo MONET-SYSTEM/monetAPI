@@ -16,6 +16,7 @@ Route::controller(AuthController::class)->group(function(){
 
     Route::post('/otp', 'otp')->name('api.auth.otp')->middleware('auth:sanctum');
     Route::post('/verify', 'verify')->name('api.auth.verify')->middleware('auth:sanctum');
+    Route::post('/logout', 'logout')->name('api.auth.logout')->middleware('auth:sanctum');
 });
 
 // Routes for Currency using route::post in POSTMAN API
