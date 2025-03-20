@@ -29,6 +29,7 @@ return [
     'account_type' => 'Account Type',
     'accounts' => 'Accounts',
     'account' => 'Account',
+    
     'unauthenticated' => 'Unauthenticated!',
 
 
@@ -40,6 +41,7 @@ return [
     'data_update_error' => 'An error occurred whiles updating :data!',
     'data_delete_success' => ':data Deleted Successfully!',
     'data_delete_error' => 'An error occurred whiles deleting :data!',
+    'logout_success' => 'Logout Successfully!',
     'data_not_found' => ':data Not Found!'
     
 

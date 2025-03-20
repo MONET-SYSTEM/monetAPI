@@ -61,6 +61,32 @@ class AuthController extends Controller
             ]
         ], 200);
     }
+
+    public function logout(Request $request)
+    {
+        // Get the authenticated user
+        /** @var User $user */
+        $user = Auth::user();
+        
+        // Perform logout based on the guard being used
+        if (Auth::guard('sanctum')->check()) {
+            // For Sanctum
+            $request->user()->currentAccessToken();
+        } else if (Auth::guard('api')->check()) {
+            // For Passport
+            $user->tokens->each(function ($token) {
+                $token->revoke();
+            });
+        } else {
+            // For session-based auth
+            Auth::logout(); 
+        }
+        
+        // return
+        return response([
+            'message' => __('app.logout_success')
+        ]);
+    }
     
     public function otp(Request $request) : Response {
         /** @var User $user */
@@ -73,6 +99,7 @@ class AuthController extends Controller
             'message' => __('app.otp_sent'),
         ]);
     }
+
 
     public function verify(Request $request) : Response {
 
