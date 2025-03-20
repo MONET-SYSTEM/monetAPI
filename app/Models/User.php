@@ -49,12 +49,16 @@ class User extends Authenticatable
         ];
     }
 
+    public function otps()
+    {
+        return $this->hasMany(Otp::class);
+    }
+
     protected static function boot()
     {
         parent::boot();
 
         static::creating(function ($model) {
-            // Set UUID if it isn't already set
             if (empty($model->uuid)) {
                 $model->uuid = (string) Str::uuid();
             }

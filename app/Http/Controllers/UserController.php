@@ -91,7 +91,10 @@ class UserController extends Controller
 
     // Delete a user.
     public function destroy(User $user)
-    {
+    {   
+        // Delete associated OTP records first
+        $user->otps()->delete();
+        
         // Remove the user from the database.
         $user->delete();
 
