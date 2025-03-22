@@ -8,19 +8,25 @@ use App\Models\Currency;
 use App\Models\User;
 use Carbon\Carbon;
 use Illuminate\Support\Collection;
+use Illuminate\Http\Request;
 
 class AccountService
 {
-    public function getAccountsByUser(User $user, object $request): Collection
+    public function getAccountsByUser(User $user, Request $request): Collection
     {
-        $accounts = Account::where('user_id', $user->id)->orderBy('name');
-
-        if ($request->search) {
+        $query = Account::query();
+        
+        // Filter by user_id
+        $query->where('user_id', $user->id);
+        
+        // Apply search filter if provided
+        if ($request->has('search') && !empty($request->search)) {
             $search = $request->search;
-            $accounts->where('name', 'LIKE', "%{$search}%");
+            $query->where('name', 'LIKE', "%{$search}%");
         }
-
-        return  $accounts->get();
+        
+        // Apply ordering and get results
+        return $query->orderBy('name')->get();
     }
 
     public function getAccountByUserUuid(User $user, string $uuid): Account

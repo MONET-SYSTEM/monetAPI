@@ -20,9 +20,7 @@ class AccountController extends Controller
         $this->accountService = $accountService;
     }
 
-    /**
-     * Display a listing of the resource.
-     */
+    // Display a listing of the resource.
     public function index(Request $request)
     {
         $request->validate([
@@ -51,9 +49,7 @@ class AccountController extends Controller
         ]);
     }
 
-    /**
-     * Get Account Endpoint
-     */
+    //Get Account Endpoint
     public function get(Request $request, $id)
     {
         // get account
@@ -77,9 +73,7 @@ class AccountController extends Controller
         ]);
     }
 
-    /**
-     * Create Account Endpoint
-     */
+    //Create Account Endpoint
     public function store(Request $request): Response
     {
         $request->validate([

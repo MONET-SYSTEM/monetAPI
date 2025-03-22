@@ -17,9 +17,8 @@ class CurrencyController extends Controller
         $this->currencyService = $currencyService;
     }
 
-    /**
-     * Display a listing of the resource.
-     */
+
+    //Display a listing of the resource.
     public function index(Request $request): Response
     {
         $request->validate([
@@ -51,9 +50,8 @@ class CurrencyController extends Controller
         ]);
     }
 
-    /**
-     * Get currency by uuid
-     */
+
+    //Get currency by uuid
     public function get(Request $request, string $uuid): Response
     {
         // get currency
