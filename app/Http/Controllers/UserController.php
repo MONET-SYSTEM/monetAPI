@@ -60,7 +60,7 @@ class UserController extends Controller
         ]);
 
         // Redirect to the user list with a success message.
-        return redirect()->route('admin.users.index')->with('success', 'User created successfully!');
+        return redirect()->route('admin.users.index')->with('success', __('app.user_create'));
     }
 
     // Display the form to edit an existing user.
@@ -97,7 +97,7 @@ class UserController extends Controller
         $user->save();
 
         // Redirect to the user list with a success message.
-        return redirect()->route('admin.users.index')->with('success', 'User updated successfully!');
+        return redirect()->route('admin.users.index')->with('success', __('app.user_update'));
     }
 
     // Delete a user.
@@ -114,6 +114,6 @@ class UserController extends Controller
         $user->forceDelete();
 
         // Redirect back to the user list with a success message.
-        return redirect()->route('admin.users.index')->with('success', 'User permanently deleted successfully!');
+        return redirect()->route('admin.users.index')->with('success', __('app.user_delete'));
     }
 }

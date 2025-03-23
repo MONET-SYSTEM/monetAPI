@@ -65,7 +65,7 @@ class AccountController extends Controller
         $currency    = \App\Models\Currency::where('uuid', $request->currency)->first();
     
         if (!$accountType || !$currency) {
-            return redirect()->back()->withErrors('Invalid account type or currency.');
+            return redirect()->back()->withErrors(__('app.invalid_account'));
         }
     
         Account::create([
@@ -78,7 +78,7 @@ class AccountController extends Controller
             'active'          => 1,
         ]);
     
-        return redirect()->route('admin.accounts.index')->with('success', 'Account created successfully!');
+        return redirect()->route('admin.accounts.index')->with('success', __('app.account_create'));
     }
 
     // Display the form to edit an existing account.
@@ -123,7 +123,7 @@ class AccountController extends Controller
         ]);
 
         // Redirect to the accounts list with a success message.
-        return redirect()->route('admin.accounts.index')->with('success', 'Account updated successfully!');
+        return redirect()->route('admin.accounts.index')->with('success', __('app.account_update'));
     }
 
     // Delete an account.
@@ -131,7 +131,7 @@ class AccountController extends Controller
     {
         // Remove the account from the database.
         $account->forceDelete(); // Permanently deletes the record
-        return redirect()->route('admin.accounts.index')->with('success', 'Account permanently deleted successfully!');
+        return redirect()->route('admin.accounts.index')->with('success', __('app.account_delete'));
     }
 
     public function trends()
