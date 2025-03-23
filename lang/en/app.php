@@ -29,10 +29,17 @@ return [
     'account_type' => 'Account Type',
     'accounts' => 'Accounts',
     'account' => 'Account',
+    'invalid_account' => 'Invalid Account Type or Currency!',
+    'account_update' => 'Account Updated Successfully!',
+    'account_create' => 'Account Created Successfully!',
+    'account_delete' => 'Account Deleted Successfully!',
     
     'unauthenticated' => 'Unauthenticated!',
 
-
+    'user_create' => 'User Created Successfully!',
+    'user_update' => 'User Updated Successfully!',
+    'user_delete' => 'User Deleted Successfully!',
+    
     'data_load_success' => ':data Loaded Successfully!',
     'data_load_error' => 'An error occurred whiles loading :data!',
     'data_create_success' => ':data Created Successfully!',
