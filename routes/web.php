@@ -3,6 +3,7 @@
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Auth;
 use App\Http\Controllers\UserController;
+use App\Http\Controllers\AccountController;
 
 // The default route that shows the welcome page
 Route::get('/', function () {
@@ -27,4 +28,16 @@ Route::resource('admin/users', UserController::class)->middleware('auth')->names
         'update'  => 'admin.users.update',  // Update an existing user
         'destroy' => 'admin.users.destroy', // Delete a user
 ]);
-    
+
+Route::get('admin/accounts/trends', [AccountController::class, 'trends'])->middleware('auth')->name('admin.accounts.trends');
+
+Route::resource('admin/accounts', AccountController::class)->middleware('auth')->names([
+
+        'index'   => 'admin.accounts.index',    // List all accounts
+        'create'  => 'admin.accounts.create',   // Show form to create a new account
+        'store'   => 'admin.accounts.store',    // Save a new account
+        'show'    => 'admin.accounts.show',     // Display a specific account's details
+        'edit'    => 'admin.accounts.edit',     // Show form to edit an account
+        'update'  => 'admin.accounts.update',   // Update an existing account
+        'destroy' => 'admin.accounts.destroy',  // Delete an account
+]);

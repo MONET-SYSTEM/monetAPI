@@ -60,4 +60,9 @@ class Account extends BaseModel
     {
         return $this->currency->format($this->current_balance);
     }
+
+    public function getRouteKeyName(): string
+    {
+        return 'uuid';
+    }
 }

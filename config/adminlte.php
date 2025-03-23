@@ -321,20 +321,12 @@ return [
             'can' => 'manage-blog',
         ],
         [
-            'text' => 'pages',
-            'url' => 'admin/pages',
-            'icon' => 'far fa-fw fa-file',
-            'label' => 4,
-            'label_color' => 'success',
-        ],
-
-        [
             'text'    => 'User Management',
             'icon'    => 'fas fa-users',
             'submenu' => [
                 [
                     'text' => 'All Users',
-                    'url'  => 'admin/users', // This should match your route
+                    'url'  => 'admin/users', 
                     'icon' => 'fas fa-list',
                 ],
                 [
@@ -344,7 +336,28 @@ return [
                 ],
             ],
         ],
+        [
+            'text'    => 'Account Management',
+            'icon'    => 'fas fa-users',
+            'submenu' => [
+                [
+                    'text' => 'All Accounts',
+                    'url'  => 'admin/accounts', 
+                    'icon' => 'fas fa-list',
+                ],
+                [
+                    'text' => 'Add Account',
+                    'url'  => 'admin/accounts/create',
+                    'icon' => 'fas fa-plus',
+                ],
+            ],
 
+        ],
+        [
+            'text' => 'Trends',
+            'url'  => 'admin/accounts/trends', 
+            'icon' => 'fas fa-chart-line',
+        ],
         ['header' => 'account_settings'],
         [
             'text' => 'profile',
