@@ -54,6 +54,11 @@ class User extends Authenticatable
         return $this->hasMany(Otp::class);
     }
 
+    public function accounts()
+    {
+        return $this->hasMany(\App\Models\Account::class);
+    }
+
     protected static function boot()
     {
         parent::boot();
@@ -64,5 +69,6 @@ class User extends Authenticatable
             }
         });
     }
+
 
 }

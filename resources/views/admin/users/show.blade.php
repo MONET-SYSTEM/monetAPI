@@ -24,6 +24,18 @@
             <a href="{{ route('admin.users.index') }}" class="btn btn-secondary">
                 <i class="fas fa-arrow-left"></i> Back to List
             </a>
+
+            @if($previousUser)
+                <a href="{{ route('admin.users.show', $previousUser->id) }}" class="btn btn-primary">
+                    <i class="fas fa-arrow-left"></i> Previous
+                </a>
+            @endif
+
+            @if($nextUser)
+                <a href="{{ route('admin.users.show', $nextUser->id) }}" class="btn btn-primary">
+                    Next <i class="fas fa-arrow-right"></i>
+                </a>
+            @endif
         </div>
     </div>
 @endsection

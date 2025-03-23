@@ -26,8 +26,13 @@ class UserController extends Controller
     // Show details for a single user.
     public function show(User $user)
     {
-        // Display a view with this user's details.
-        return view('admin.users.show', compact('user'));
+        // Fetch previous user by ID
+        $previousUser = User::where('id', '<', $user->id)->orderBy('id', 'desc')->first();
+
+        // Fetch next user by ID
+        $nextUser = User::where('id', '>', $user->id)->orderBy('id', 'asc')->first();
+
+        return view('admin.users.show', compact('user', 'previousUser', 'nextUser'));
     }
 
     // Display the form to create a new user.
@@ -60,9 +65,15 @@ class UserController extends Controller
 
     // Display the form to edit an existing user.
     public function edit(User $user)
-    {
+    {   
+        // Fetch previous user by ID
+        $previousUser = User::where('id', '<', $user->id)->orderBy('id', 'desc')->first();
+
+        // Fetch next user by ID
+        $nextUser = User::where('id', '>', $user->id)->orderBy('id', 'asc')->first();
+
         // Show the form pre-filled with the user's current data.
-        return view('admin.users.edit', compact('user'));
+        return view('admin.users.edit', compact('user', 'previousUser', 'nextUser'));
     }
 
     // Update an existing user's data.
@@ -92,13 +103,17 @@ class UserController extends Controller
     // Delete a user.
     public function destroy(User $user)
     {   
+        
+        // Delete associated accounts first
+        $user->accounts()->forceDelete();
+
         // Delete associated OTP records first
         $user->otps()->delete();
         
         // Remove the user from the database.
-        $user->delete();
+        $user->forceDelete();
 
         // Redirect back to the user list with a success message.
-        return redirect()->route('admin.users.index')->with('success', 'User deleted successfully!');
+        return redirect()->route('admin.users.index')->with('success', 'User permanently deleted successfully!');
     }
 }
