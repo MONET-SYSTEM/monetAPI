@@ -31,6 +31,8 @@ Route::resource('admin/users', UserController::class)->middleware('auth')->names
 
 Route::get('admin/accounts/trends', [AccountController::class, 'trends'])->middleware('auth')->name('admin.accounts.trends');
 
+// Define resourceful routes for account management under the admin panel
+// These routes are protected so only authenticated users can access them
 Route::resource('admin/accounts', AccountController::class)->middleware('auth')->names([
 
         'index'   => 'admin.accounts.index',    // List all accounts
