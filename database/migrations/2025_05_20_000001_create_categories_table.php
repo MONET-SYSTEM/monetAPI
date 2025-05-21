@@ -11,17 +11,15 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('transactions', function (Blueprint $table) {
+        Schema::create('categories', function (Blueprint $table) {
             $table->id();
             $table->uuid('uuid')->unique();
-            $table->foreignId('account_id')->constrained('accounts')->onDelete('cascade');
-            $table->decimal('amount', 15, 2);
-            $table->enum('type', ['income', 'expense', 'transfer']);
-            $table->string('category')->nullable();
+            $table->string('name');
             $table->text('description')->nullable();
-            $table->date('transaction_date');
-            $table->boolean('is_reconciled')->default(false);
-            $table->string('reference')->nullable();
+            $table->string('icon')->nullable();
+            $table->enum('type', ['income', 'expense', 'transfer', 'all'])->default('all');
+            $table->string('colour_code')->nullable();
+            $table->boolean('is_system')->default(false);
             $table->timestamps();
             $table->softDeletes();
         });
@@ -32,6 +30,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('transactions');
+        Schema::dropIfExists('categories');
     }
 };
