@@ -37,20 +37,20 @@ class AccountController extends Controller
 
         // Display a view with this account's details.
         return view('admin.accounts.show', compact('account', 'previous', 'next'));
-    }
-
-    // Display the form to create a new account.
+    }    // Display the form to create a new account.
     public function create()
     {
         // Fetch account types and currencies from the database.
         $accountTypes = AccountType::all();
         $currencies   = Currency::all();
+        
+        // Get list of users for admin to select from
+        // You might want to add a role check here for security
+        $users = \App\Models\User::all();
 
         // Pass the collections to the view.
-        return view('admin.accounts.create', compact('accountTypes', 'currencies'));
-    }
-
-    public function store(Request $request)
+        return view('admin.accounts.create', compact('accountTypes', 'currencies', 'users'));
+    }    public function store(Request $request)
     {
         $request->validate([
             'account_type'    => 'required|exists:account_types,uuid',
@@ -58,6 +58,7 @@ class AccountController extends Controller
             'name'            => 'required|string|max:255',
             'initial_balance' => 'required|numeric',
             'colour_code'     => 'nullable|string|max:255',
+            'user_id'         => 'nullable|exists:users,uuid', // Make user_id optional, will use Auth::id() if not provided
         ]);
     
         // Convert UUIDs to integer IDs
@@ -67,9 +68,20 @@ class AccountController extends Controller
         if (!$accountType || !$currency) {
             return redirect()->back()->withErrors(__('app.invalid_account'));
         }
+        
+        // If user_id is provided and the current user is an admin (you may need to implement role checking)
+        // then use the provided user_id, otherwise use the currently authenticated user's ID
+        $userId = Auth::id(); // Default to current user
+        
+        if ($request->user_id) {
+            $selectedUser = \App\Models\User::where('uuid', $request->user_id)->first();
+            if ($selectedUser) {
+                $userId = $selectedUser->id;
+            }
+        }
     
         Account::create([
-            'user_id'         => Auth::id(),
+            'user_id'         => $userId,
             'account_type_id' => $accountType->id, 
             'currency_id'     => $currency->id,    
             'name'            => $request->name,
