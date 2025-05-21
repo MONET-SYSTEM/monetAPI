@@ -43,3 +43,33 @@ Route::resource('admin/accounts', AccountController::class)->middleware('auth')-
         'update'  => 'admin.accounts.update',   // Update an existing account
         'destroy' => 'admin.accounts.destroy',  // Delete an account
 ]);
+
+// Transactions routes
+Route::get('admin/transactions/statistics', [App\Http\Controllers\TransactionController::class, 'statistics'])
+    ->middleware('auth')
+    ->name('admin.transactions.statistics');
+
+Route::resource('admin/transactions', App\Http\Controllers\TransactionController::class)
+    ->middleware('auth')
+    ->names([
+        'index'   => 'admin.transactions.index',    // List all transactions
+        'create'  => 'admin.transactions.create',   // Show form to create a new transaction
+        'store'   => 'admin.transactions.store',    // Save a new transaction
+        'show'    => 'admin.transactions.show',     // Display a specific transaction's details
+        'edit'    => 'admin.transactions.edit',     // Show form to edit a transaction
+        'update'  => 'admin.transactions.update',   // Update an existing transaction
+        'destroy' => 'admin.transactions.destroy',  // Delete a transaction
+    ]);
+
+// API Monitoring routes
+Route::get('admin/api/monitor', [App\Http\Controllers\ApiMonitorController::class, 'index'])
+    ->middleware('auth')
+    ->name('admin.api.monitor');
+
+Route::get('admin/api/logs/{requestId}', [App\Http\Controllers\ApiMonitorController::class, 'showLog'])
+    ->middleware('auth')
+    ->name('admin.api.logs.show');
+
+Route::get('admin/api/export', [App\Http\Controllers\ApiMonitorController::class, 'exportLogs'])
+    ->middleware('auth')
+    ->name('admin.api.export');

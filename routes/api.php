@@ -41,6 +41,25 @@ Route::controller(AccountController::class)->group(function () {
     Route::delete('/account/{id}', 'delete')->name('api.account.delete')->middleware('auth:sanctum');
 });
 
+// Routes for Transactions
+Route::controller(\App\Http\Controllers\API\TransactionApiController::class)->group(function () {
+    Route::get('/transaction/statistics', 'statistics')->name('api.transaction.statistics')->middleware('auth:sanctum');
+    Route::get('/transaction', 'index')->name('api.transaction.index')->middleware('auth:sanctum');
+    Route::get('/transaction/{uuid}', 'show')->name('api.transaction.show')->middleware('auth:sanctum');
+    Route::post('/transaction', 'store')->name('api.transaction.store')->middleware('auth:sanctum');
+    Route::put('/transaction/{uuid}', 'update')->name('api.transaction.update')->middleware('auth:sanctum');
+    Route::delete('/transaction/{uuid}', 'destroy')->name('api.transaction.destroy')->middleware('auth:sanctum');
+});
+
+// Routes for Categories
+Route::controller(\App\Http\Controllers\API\CategoryApiController::class)->group(function () {
+    Route::get('/category', 'index')->name('api.category.index')->middleware('auth:sanctum');
+    Route::get('/category/{uuid}', 'show')->name('api.category.show')->middleware('auth:sanctum');
+    Route::post('/category', 'store')->name('api.category.store')->middleware('auth:sanctum');
+    Route::put('/category/{uuid}', 'update')->name('api.category.update')->middleware('auth:sanctum');
+    Route::delete('/category/{uuid}', 'destroy')->name('api.category.destroy')->middleware('auth:sanctum');
+});
+
 
 
 

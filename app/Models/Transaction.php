@@ -11,7 +11,8 @@ class Transaction extends BaseModel
      * The attributes that are mass assignable.
      *
      * @var array<int, string>
-     */    protected $fillable = [
+     */    
+    protected $fillable = [
         'account_id',
         'category_id',
         'amount',
