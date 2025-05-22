@@ -111,4 +111,59 @@ class Transaction extends BaseModel
     {
         return 'uuid';
     }
+
+    /**
+     * Check if this transaction is a transfer
+     *
+     * @return bool
+     */
+    public function isTransfer(): bool
+    {
+        return $this->type === 'transfer';
+    }
+
+    /**
+     * Check if this transaction is a transfer out (money leaving account)
+     *
+     * @return bool
+     */
+    public function isTransferOut(): bool
+    {
+        return $this->isTransfer() && str_starts_with($this->reference ?? '', 'TRANSFER-OUT');
+    }
+
+    /**
+     * Check if this transaction is a transfer in (money entering account)
+     *
+     * @return bool
+     */
+    public function isTransferIn(): bool
+    {
+        return $this->isTransfer() && str_starts_with($this->reference ?? '', 'TRANSFER-IN');
+    }
+
+    /**
+     * Check if this transaction is a currency transfer
+     *
+     * @return bool
+     */
+    public function isCurrencyTransfer(): bool
+    {
+        return $this->isTransfer() && str_contains($this->reference ?? '', 'FX-TRANSFER');
+    }
+
+    /**
+     * Get the transfer direction label
+     *
+     * @return string
+     */
+    public function getTransferDirectionLabel(): string
+    {
+        if ($this->isTransferOut()) {
+            return 'Out';
+        } elseif ($this->isTransferIn()) {
+            return 'In';
+        }
+        return '';
+    }
 }

@@ -6,6 +6,7 @@ use App\Models\Account;
 use App\Models\Category;
 use App\Models\Transaction;
 use App\Services\TransactionService;
+use App\Services\ExchangeRateService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -246,31 +247,375 @@ class TransactionController extends Controller
         // Validate that the account belongs to the user
         if ($accountId && !in_array($accountId, $accountIds)) {
             abort(403, 'Unauthorized action.');
+        }        // Get statistics using the service
+        $rawStats = $this->transactionService->getStatistics($startDate, $endDate, $accountId);
+          // Format statistics for the view
+        $stats = [
+            'total_income' => $rawStats['total_income'],
+            'total_expense' => $rawStats['total_expense'],
+            'net' => $rawStats['net'],
+            'income_formatted' => number_format($rawStats['total_income'], 2),
+            'expense_formatted' => number_format($rawStats['total_expense'], 2),
+            'balance_formatted' => number_format($rawStats['net'], 2),
+            'transaction_count' => count($rawStats['categories']),
+            'categories' => $rawStats['categories']
+        ];
+        
+        // Calculate current total balance across all accounts or selected account
+        if ($accountId) {
+            $account = Account::find($accountId);
+            $initialBalance = $account->initial_balance;
+            $currentBalance = $account->getCurrentBalanceAttribute();
+            $stats['initial_balance'] = $initialBalance;
+            $stats['current_balance'] = $currentBalance;
+            $stats['initial_balance_formatted'] = number_format($initialBalance, 2);
+            $stats['current_balance_formatted'] = number_format($currentBalance, 2);
+        } else {
+            $initialTotalBalance = $accounts->sum('initial_balance');
+            $currentTotalBalance = $accounts->sum(function($account) {
+                return $account->getCurrentBalanceAttribute();
+            });
+            $stats['initial_balance'] = $initialTotalBalance;
+            $stats['current_balance'] = $currentTotalBalance;
+            $stats['initial_balance_formatted'] = number_format($initialTotalBalance, 2);
+            $stats['current_balance_formatted'] = number_format($currentTotalBalance, 2);
         }
         
-        // Get statistics using the service
-        $stats = $this->transactionService->getStatistics($startDate, $endDate, $accountId);
-        
-        // Get category breakdown
-        $categoryBreakdown = DB::table('transactions')
+        // Get category breakdown for categorized transactions
+        $categorizedBreakdown = DB::table('transactions')
             ->select('categories.name', 'transactions.type', DB::raw('SUM(transactions.amount) as total'))
             ->join('categories', 'transactions.category_id', '=', 'categories.id')
             ->whereIn('transactions.account_id', $accountIds)
             ->whereBetween('transactions.transaction_date', [$startDate, $endDate])
             ->groupBy('categories.name', 'transactions.type')
             ->get();
-        
-        // Get monthly trend
+            
+        // Get category breakdown for uncategorized transactions
+        $uncategorizedBreakdown = DB::table('transactions')
+            ->select(DB::raw("'Uncategorized' as name"), 'type', DB::raw('SUM(amount) as total'))
+            ->whereNull('category_id')
+            ->whereIn('account_id', $accountIds)
+            ->whereBetween('transaction_date', [$startDate, $endDate])
+            ->groupBy('type')
+            ->get();
+            
+        // Combine both results
+        $categoryBreakdown = $categorizedBreakdown->concat($uncategorizedBreakdown);
+          // Get monthly trend - ensure we get data for past 12 months
         $monthlyTrend = DB::table('transactions')
             ->select(DB::raw('DATE_FORMAT(transaction_date, "%Y-%m") as month'), 
                     'type', 
                     DB::raw('SUM(amount) as total'))
             ->whereIn('account_id', $accountIds)
             ->whereDate('transaction_date', '>=', now()->subMonths(12))
+            ->whereDate('transaction_date', '<=', now())
             ->groupBy('month', 'type')
-            ->orderBy('month')
+            ->orderBy('month', 'asc')
             ->get();
         
         return view('admin.transactions.statistics', compact('stats', 'accounts', 'startDate', 'endDate', 'categoryBreakdown', 'monthlyTrend'));
+    }
+    /**
+     * Process a transfer between accounts.
+     */    
+    public function processTransfer(Request $request)
+    {
+        // Prepare validation rules
+        $rules = [
+            'from_account_id' => 'required|exists:accounts,id|different:to_account_id',
+            'to_account_id' => 'required|exists:accounts,id',
+            'amount' => 'required|numeric|min:0.01',
+            'description' => 'nullable|string|max:255',
+            'transaction_date' => 'required|date',
+            'use_real_time_rate' => 'boolean',
+        ];
+        
+        // Get the authenticated user
+        $user = Auth::user();
+        
+        // Verify account ownership
+        $fromAccount = Account::find($request->from_account_id);
+        $toAccount = Account::find($request->to_account_id);
+        
+        if (!$fromAccount || !$toAccount || $fromAccount->user_id !== $user->id || $toAccount->user_id !== $user->id) {
+            abort(403, 'Unauthorized action.');
+        }
+        
+        // Check if this is a multi-currency transfer
+        $isCurrencyTransfer = $fromAccount->currency_id !== $toAccount->currency_id;
+        
+        // Add destination amount validation for currency transfers
+        if ($isCurrencyTransfer && !($request->use_real_time_rate ?? false)) {
+            $rules['destination_amount'] = 'required|numeric|min:0.01';
+        }
+        
+        // Validate input
+        $validator = Validator::make($request->all(), $rules);
+        
+        if ($validator->fails()) {
+            return redirect()->back()
+                ->withErrors($validator)
+                ->withInput();
+        }
+        
+        try {
+            if ($isCurrencyTransfer) {
+                if ($request->use_real_time_rate ?? false) {
+                    // Use real-time exchange rate for different currency transfer
+                    $result = $this->transactionService->createCurrencyTransferWithRealTimeRate([
+                        'source_account_id' => $request->from_account_id,
+                        'destination_account_id' => $request->to_account_id,
+                        'source_amount' => $request->amount,
+                        'description' => $request->description,
+                        'transaction_date' => $request->transaction_date,
+                        'is_reconciled' => $request->is_reconciled ?? false,
+                    ]);
+                    
+                    $message = 'Currency transfer completed successfully using real-time exchange rate. Rate: 1 ' . 
+                        $fromAccount->currency->code . ' = ' . 
+                        number_format($result['exchange_rate'], 4) . ' ' . 
+                        $toAccount->currency->code;
+                } else {
+                    // Manual exchange rate for different currency transfer
+                    $result = $this->transactionService->createCurrencyTransfer([
+                        'source_account_id' => $request->from_account_id,
+                        'destination_account_id' => $request->to_account_id,
+                        'source_amount' => $request->amount,
+                        'destination_amount' => $request->destination_amount,
+                        'description' => $request->description,
+                        'transaction_date' => $request->transaction_date,
+                        'is_reconciled' => $request->is_reconciled ?? false,
+                    ]);
+                    
+                    $message = 'Currency transfer completed successfully. Rate: 1 ' . 
+                        $fromAccount->currency->code . ' = ' . 
+                        number_format($request->destination_amount / $request->amount, 4) . ' ' . 
+                        $toAccount->currency->code;
+                }
+            } else {
+                // Same currency transfer
+                $result = $this->transactionService->createTransfer([
+                    'source_account_id' => $request->from_account_id,
+                    'destination_account_id' => $request->to_account_id,
+                    'amount' => $request->amount,
+                    'description' => $request->description,
+                    'transaction_date' => $request->transaction_date,
+                    'is_reconciled' => $request->is_reconciled ?? false,
+                ]);
+                
+                $message = 'Transfer completed successfully.';
+            }
+            
+            return redirect()->route('admin.transactions.index')
+                ->with('success', $message);
+        } catch (\Exception $e) {
+            return redirect()->back()
+                ->with('error', 'Error processing transfer: ' . $e->getMessage())
+                ->withInput();
+        }
+    }
+    
+    /**
+     * Get exchange rate between two currencies.
+     *
+     * @param Request $request
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function getExchangeRate(Request $request)
+    {
+        try {
+            // Validate input
+            $validator = Validator::make($request->all(), [
+                'from_currency' => 'required|string|size:3',
+                'to_currency' => 'required|string|size:3',
+                'amount' => 'nullable|numeric|min:0.01'
+            ]);
+            
+            if ($validator->fails()) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Validation failed',
+                    'errors' => $validator->errors()
+                ], 422);
+            }
+            
+            // Get the exchange rate service
+            $exchangeRateService = app(ExchangeRateService::class);
+            
+            // Get the exchange rate
+            $rate = $exchangeRateService->getRate(
+                $request->from_currency, 
+                $request->to_currency
+            );
+            
+            if ($rate === null) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Failed to get exchange rate'
+                ], 500);
+            }
+            
+            $result = [
+                'from_currency' => $request->from_currency,
+                'to_currency' => $request->to_currency,
+                'rate' => $rate,
+                'date' => now()->format('Y-m-d H:i:s')
+            ];
+            
+            // Calculate converted amount if provided
+            if ($request->has('amount')) {
+                $result['amount'] = $request->amount;
+                $result['converted_amount'] = round($request->amount * $rate, 2);
+            }
+            
+            return response()->json([
+                'status' => 'success',
+                'data' => $result
+            ]);
+            
+        } catch (\Exception $e) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Failed to get exchange rate: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+    
+    /**
+     * Create a transfer between accounts with the same currency.
+     *
+     * @param Request $request
+     * @return \Illuminate\Http\RedirectResponse
+     */
+    public function transfer(Request $request)
+    {
+        try {
+            // Validate input
+            $validator = Validator::make($request->all(), [
+                'source_account_id' => 'required',
+                'destination_account_id' => 'required|different:source_account_id',
+                'amount' => 'required|numeric|min:0.01',
+                'description' => 'nullable|string|max:255',
+                'transaction_date' => 'required|date',
+                'is_reconciled' => 'boolean',
+                'reference' => 'nullable|string|max:100'
+            ]);
+            
+            if ($validator->fails()) {
+                return redirect()->back()
+                    ->withErrors($validator)
+                    ->withInput();
+            }
+            
+            // Retrieve the accounts
+            $sourceAccount = Account::findOrFail($request->source_account_id);
+            $destinationAccount = Account::findOrFail($request->destination_account_id);
+            
+            // Verify both accounts have the same currency
+            if ($sourceAccount->currency_id !== $destinationAccount->currency_id) {
+                return redirect()->back()
+                    ->withErrors(['error' => 'For accounts with different currencies, use the currency transfer form'])
+                    ->withInput();
+            }
+            
+            // Prepare transfer data
+            $transferData = [
+                'source_account_id' => $sourceAccount->id,
+                'destination_account_id' => $destinationAccount->id,
+                'amount' => $request->amount,
+                'description' => $request->description,
+                'transaction_date' => $request->transaction_date,
+                'is_reconciled' => $request->is_reconciled ?? false,
+                'reference' => $request->reference
+            ];
+            
+            // Create the transfer using the service
+            $result = $this->transactionService->createTransfer($transferData);
+            
+            return redirect()->route('admin.transactions.index')
+                ->with('success', 'Transfer created successfully');
+            
+        } catch (\Exception $e) {
+            return redirect()->back()
+                ->withErrors(['error' => 'Failed to create transfer: ' . $e->getMessage()])
+                ->withInput();
+        }
+    }
+    
+    /**
+     * Create a transfer between accounts with different currencies.
+     *
+     * @param Request $request
+     * @return \Illuminate\Http\RedirectResponse
+     */
+    public function currencyTransfer(Request $request)
+    {
+        try {
+            // Validate input
+            $validator = Validator::make($request->all(), [
+                'source_account_id' => 'required',
+                'destination_account_id' => 'required|different:source_account_id',
+                'source_amount' => 'required|numeric|min:0.01',
+                'destination_amount' => 'required|numeric|min:0.01',
+                'use_real_time_rate' => 'boolean',
+                'description' => 'nullable|string|max:255',
+                'transaction_date' => 'required|date',
+                'is_reconciled' => 'boolean',
+                'reference' => 'nullable|string|max:100'
+            ]);
+            
+            if ($validator->fails()) {
+                return redirect()->back()
+                    ->withErrors($validator)
+                    ->withInput();
+            }
+            
+            // Retrieve the accounts
+            $sourceAccount = Account::findOrFail($request->source_account_id);
+            $destinationAccount = Account::findOrFail($request->destination_account_id);
+            
+            // Verify accounts have different currencies
+            if ($sourceAccount->currency_id === $destinationAccount->currency_id) {
+                return redirect()->back()
+                    ->withErrors(['error' => 'For accounts with the same currency, use the regular transfer form'])
+                    ->withInput();
+            }
+            
+            // Handle the transfer based on whether real-time rates are used
+            if ($request->use_real_time_rate) {
+                $transferData = [
+                    'source_account_id' => $sourceAccount->id,
+                    'destination_account_id' => $destinationAccount->id,
+                    'source_amount' => $request->source_amount,
+                    'description' => $request->description,
+                    'transaction_date' => $request->transaction_date,
+                    'is_reconciled' => $request->is_reconciled ?? false,
+                    'reference' => $request->reference
+                ];
+                
+                $result = $this->transactionService->createCurrencyTransferWithRealTimeRate($transferData);
+            } else {
+                $transferData = [
+                    'source_account_id' => $sourceAccount->id,
+                    'destination_account_id' => $destinationAccount->id,
+                    'source_amount' => $request->source_amount,
+                    'destination_amount' => $request->destination_amount,
+                    'description' => $request->description,
+                    'transaction_date' => $request->transaction_date,
+                    'is_reconciled' => $request->is_reconciled ?? false,
+                    'reference' => $request->reference
+                ];
+                
+                $result = $this->transactionService->createCurrencyTransfer($transferData);
+            }
+            
+            return redirect()->route('admin.transactions.index')
+                ->with('success', 'Currency transfer created successfully');
+            
+        } catch (\Exception $e) {
+            return redirect()->back()
+                ->withErrors(['error' => 'Failed to create currency transfer: ' . $e->getMessage()])
+                ->withInput();
+        }
     }
 }

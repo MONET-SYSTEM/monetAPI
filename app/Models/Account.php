@@ -20,6 +20,7 @@ class Account extends BaseModel
         'currency_id',
         'name',
         'initial_balance',
+        'current_balance',
         'colour_code',
         'active',
     ];
@@ -33,6 +34,8 @@ class Account extends BaseModel
     {
         return [
             'initial_balance' => 'double',
+            'current_balance' => 'double',
+            'active' => 'boolean',
         ];
     }
 
@@ -51,9 +54,29 @@ class Account extends BaseModel
         return $this->currency->format($this->initial_balance);
     }
 
+    public function transactions()
+    {
+        return $this->hasMany(Transaction::class);
+    }
+
     public function getCurrentBalanceAttribute(): float
     {
-        return $this->initial_balance + 0;
+        $income = $this->transactions()->where('type', 'income')->sum('amount') ?? 0;
+        $expense = $this->transactions()->where('type', 'expense')->sum('amount') ?? 0;
+        
+        // Get transfers in (money received from other accounts)
+        $transfersIn = Transaction::where('type', 'transfer')
+            ->where('account_id', $this->id)
+            ->where('reference', 'LIKE', 'TRANSFER-IN%')
+            ->sum('amount') ?? 0;
+            
+        // Get transfers out (money sent to other accounts)
+        $transfersOut = Transaction::where('type', 'transfer')
+            ->where('account_id', $this->id)
+            ->where('reference', 'LIKE', 'TRANSFER-OUT%')
+            ->sum('amount') ?? 0;
+        
+        return $this->initial_balance + $income + $transfersIn - $expense - $transfersOut;
     }
 
     public function getCurrentBalanceTextAttribute(): string
