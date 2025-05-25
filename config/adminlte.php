@@ -338,7 +338,7 @@ return [
         ],
         [
             'text'    => 'Account Management',
-            'icon'    => 'fas fa-users',
+            'icon'    => 'fas fa-wallet',
             'submenu' => [
                 [
                     'text' => 'All Accounts',
@@ -350,13 +350,49 @@ return [
                     'url'  => 'admin/accounts/create',
                     'icon' => 'fas fa-plus',
                 ],
+                [
+                    'text' => 'Trends',
+                    'url'  => 'admin/accounts/trends', 
+                    'icon' => 'fas fa-chart-line',
+                ],
             ],
-
         ],
         [
-            'text' => 'Trends',
-            'url'  => 'admin/accounts/trends', 
-            'icon' => 'fas fa-chart-line',
+            'text'    => 'Transactions',
+            'icon'    => 'fas fa-exchange-alt',
+            'submenu' => [
+                [
+                    'text' => 'All Transactions',
+                    'url'  => 'admin/transactions', 
+                    'icon' => 'fas fa-list',
+                ],
+                [
+                    'text' => 'Add Transaction',
+                    'url'  => 'admin/transactions/create',
+                    'icon' => 'fas fa-plus',
+                ],
+                [
+                    'text' => 'Statistics',
+                    'url'  => 'admin/transactions/statistics', 
+                    'icon' => 'fas fa-chart-pie',
+                ],
+            ],
+        ],
+        [
+            'text'    => 'API Management',
+            'icon'    => 'fas fa-code',
+            'submenu' => [
+                [
+                    'text' => 'API Monitor',
+                    'url'  => 'admin/api/monitor', 
+                    'icon' => 'fas fa-chart-line',
+                ],
+                [
+                    'text' => 'Export Logs',
+                    'url'  => 'admin/api/export',
+                    'icon' => 'fas fa-file-export',
+                ],
+            ],
         ],
         ['header' => 'account_settings'],
         [
@@ -368,60 +404,6 @@ return [
             'text' => 'change_password',
             'url' => 'admin/settings',
             'icon' => 'fas fa-fw fa-lock',
-        ],
-        [
-            'text' => 'multilevel',
-            'icon' => 'fas fa-fw fa-share',
-            'submenu' => [
-                [
-                    'text' => 'level_one',
-                    'url' => '#',
-                ],
-                [
-                    'text' => 'level_one',
-                    'url' => '#',
-                    'submenu' => [
-                        [
-                            'text' => 'level_two',
-                            'url' => '#',
-                        ],
-                        [
-                            'text' => 'level_two',
-                            'url' => '#',
-                            'submenu' => [
-                                [
-                                    'text' => 'level_three',
-                                    'url' => '#',
-                                ],
-                                [
-                                    'text' => 'level_three',
-                                    'url' => '#',
-                                ],
-                            ],
-                        ],
-                    ],
-                ],
-                [
-                    'text' => 'level_one',
-                    'url' => '#',
-                ],
-            ],
-        ],
-        ['header' => 'labels'],
-        [
-            'text' => 'important',
-            'icon_color' => 'red',
-            'url' => '#',
-        ],
-        [
-            'text' => 'warning',
-            'icon_color' => 'yellow',
-            'url' => '#',
-        ],
-        [
-            'text' => 'information',
-            'icon_color' => 'cyan',
-            'url' => '#',
         ],
     ],
 

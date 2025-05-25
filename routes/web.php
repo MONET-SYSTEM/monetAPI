@@ -48,6 +48,18 @@ Route::resource('admin/accounts', AccountController::class)->middleware('auth')-
 Route::get('admin/transactions/statistics', [App\Http\Controllers\TransactionController::class, 'statistics'])
     ->middleware('auth')
     ->name('admin.transactions.statistics');
+    
+Route::get('admin/transactions/exchange-rate', [App\Http\Controllers\TransactionController::class, 'getExchangeRate'])
+    ->middleware('auth')
+    ->name('admin.transactions.exchange-rate');
+    
+Route::post('admin/transactions/transfer', [App\Http\Controllers\TransactionController::class, 'transfer'])
+    ->middleware('auth')
+    ->name('admin.transactions.transfer');
+    
+Route::post('admin/transactions/currency-transfer', [App\Http\Controllers\TransactionController::class, 'currencyTransfer'])
+    ->middleware('auth')
+    ->name('admin.transactions.currency-transfer');
 
 Route::resource('admin/transactions', App\Http\Controllers\TransactionController::class)
     ->middleware('auth')
@@ -60,6 +72,11 @@ Route::resource('admin/transactions', App\Http\Controllers\TransactionController
         'update'  => 'admin.transactions.update',   // Update an existing transaction
         'destroy' => 'admin.transactions.destroy',  // Delete a transaction
     ]);
+
+// Transfer route
+Route::post('admin/transactions/transfer', [App\Http\Controllers\TransactionController::class, 'transfer'])
+    ->middleware('auth')
+    ->name('admin.transactions.transfer');
 
 // API Monitoring routes
 Route::get('admin/api/monitor', [App\Http\Controllers\ApiMonitorController::class, 'index'])
