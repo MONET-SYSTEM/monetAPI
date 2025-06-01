@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\API;
 
 use App\Http\Controllers\Controller;
+use App\Http\Resources\TransactionResource;
 use App\Models\Account;
 use App\Models\Transaction;
 use App\Models\Currency;
@@ -570,10 +571,12 @@ class TransactionApiController extends Controller
                 'status' => 'success',
                 'message' => 'Transfer created successfully',
                 'data' => [
-                    'outgoing' => new \App\Http\Resources\TransactionResource($result['outgoing']),
-                    'incoming' => new \App\Http\Resources\TransactionResource($result['incoming'])
+                    'outgoing' => new TransactionResource($result['outgoing']),
+                    'incoming' => new TransactionResource($result['incoming']),
+                    'transfer_id' => $result['transfer']->uuid,
+                    'exchange_rate' => $result['exchange_rate']
                 ]
-            ]);
+            ], 201);
             
         } catch (\Exception $e) {
             return response()->json([
@@ -593,22 +596,12 @@ class TransactionApiController extends Controller
     public function currencyTransfer(Request $request)
     {
         try {
-            // Get the authenticated user
-            $user = Auth::user();
-            
-            if (!$user) {
-                return response()->json([
-                    'status' => 'error',
-                    'message' => 'Unauthenticated user'
-                ], 401);
-            }
-            
             // Validate input
             $validator = Validator::make($request->all(), [
                 'source_account_id' => 'required|string',
                 'destination_account_id' => 'required|string|different:source_account_id',
                 'source_amount' => 'required|numeric|min:0.01',
-                'destination_amount' => 'required|numeric|min:0.01',
+                'destination_amount' => 'required_without:use_real_time_rate|numeric|min:0.01',
                 'use_real_time_rate' => 'boolean',
                 'description' => 'nullable|string|max:255',
                 'transaction_date' => 'required|date',
@@ -624,14 +617,12 @@ class TransactionApiController extends Controller
                 ], 422);
             }
             
-            // Retrieve the accounts
-            $sourceAccount = Account::where('uuid', $request->source_account_id)
-                ->orWhere('id', $request->source_account_id)
-                ->first();
-                
-            $destinationAccount = Account::where('uuid', $request->destination_account_id)
-                ->orWhere('id', $request->destination_account_id)
-                ->first();
+            // Get authenticated user
+            $user = Auth::user();
+            
+            // Find accounts by UUID
+            $sourceAccount = Account::where('uuid', $request->source_account_id)->first();
+            $destinationAccount = Account::where('uuid', $request->destination_account_id)->first();
             
             if (!$sourceAccount || !$destinationAccount) {
                 return response()->json([
@@ -640,50 +631,43 @@ class TransactionApiController extends Controller
                 ], 404);
             }
             
-            // Check if both accounts belong to the user
-            $userAccounts = $user->accounts()->pluck('id')->toArray();
-            
-            if (!in_array($sourceAccount->id, $userAccounts) || !in_array($destinationAccount->id, $userAccounts)) {
+            // Verify user owns both accounts
+            if ($sourceAccount->user_id !== $user->id || $destinationAccount->user_id !== $user->id) {
                 return response()->json([
                     'status' => 'error',
-                    'message' => 'Unauthorized access to one or both accounts'
+                    'message' => 'Unauthorized access to accounts'
                 ], 403);
             }
             
-            // Verify accounts have different currencies
-            if ($sourceAccount->currency_id === $destinationAccount->currency_id) {
-                return response()->json([
-                    'status' => 'error',
-                    'message' => 'For accounts with the same currency, use the transfer endpoint'
-                ], 422);
-            }
-            
-            // Handle real-time exchange rates if requested
             $destinationAmount = $request->destination_amount;
+            $useRealTimeRate = $request->use_real_time_rate ?? false;
             
-            if ($request->use_real_time_rate ?? false) {
-                // Get the exchange rate service
-                $exchangeRateService = app(ExchangeRateService::class);
-                
-                // Get source and destination currency codes
-                $sourceCurrency = $sourceAccount->currency->code;
-                $destinationCurrency = $destinationAccount->currency->code;
-                
-                // Calculate destination amount using real-time rate
-                $calculatedAmount = $exchangeRateService->convertAmount(
-                    $request->source_amount, 
-                    $sourceCurrency, 
-                    $destinationCurrency
-                );
-                
-                if ($calculatedAmount === null) {
+            // If using real-time exchange rate
+            if ($useRealTimeRate) {
+                try {
+                    $exchangeRateService = app(ExchangeRateService::class);
+                    $sourceCurrency = $sourceAccount->currency->code;
+                    $destinationCurrency = $destinationAccount->currency->code;
+                    
+                    // Calculate destination amount using real-time rate
+                    $destinationAmount = $exchangeRateService->convertAmount(
+                        $request->source_amount, 
+                        $sourceCurrency, 
+                        $destinationCurrency
+                    );
+                    
+                    if ($destinationAmount === null) {
+                        return response()->json([
+                            'status' => 'error',
+                            'message' => 'Failed to get real-time exchange rate'
+                        ], 500);
+                    }
+                } catch (\Exception $e) {
                     return response()->json([
                         'status' => 'error',
-                        'message' => 'Failed to get real-time exchange rate'
+                        'message' => 'Exchange rate service error: ' . $e->getMessage()
                     ], 500);
                 }
-                
-                $destinationAmount = $calculatedAmount;
             }
             
             // Prepare transfer data
@@ -692,10 +676,11 @@ class TransactionApiController extends Controller
                 'destination_account_id' => $destinationAccount->id,
                 'source_amount' => $request->source_amount,
                 'destination_amount' => $destinationAmount,
-                'description' => $request->description,
+                'description' => $request->description ?? 'Currency transfer',
                 'transaction_date' => $request->transaction_date,
                 'is_reconciled' => $request->is_reconciled ?? false,
-                'reference' => $request->reference
+                'reference' => $request->reference,
+                'use_real_time_rate' => $useRealTimeRate
             ];
             
             // Create the currency transfer using the service
@@ -705,17 +690,30 @@ class TransactionApiController extends Controller
                 'status' => 'success',
                 'message' => 'Currency transfer created successfully',
                 'data' => [
-                    'outgoing' => new \App\Http\Resources\TransactionResource($result['outgoing']),
-                    'incoming' => new \App\Http\Resources\TransactionResource($result['incoming']),
-                    'exchange_rate' => $result['exchange_rate']
+                    'outgoing' => new TransactionResource($result['outgoing']),
+                    'incoming' => new TransactionResource($result['incoming']),
+                    'transfer_id' => isset($result['transfer']) && $result['transfer']->uuid ? $result['transfer']->uuid : null,
+                    'exchange_rate' => $result['exchange_rate'],
+                    'used_real_time_rate' => $useRealTimeRate,
+                    'source_account' => [
+                        'id' => $sourceAccount->uuid,
+                        'name' => $sourceAccount->name,
+                        'currency' => $sourceAccount->currency->code,
+                        'new_balance' => $sourceAccount->getCurrentBalanceAttribute()
+                    ],
+                    'destination_account' => [
+                        'id' => $destinationAccount->uuid,
+                        'name' => $destinationAccount->name,
+                        'currency' => $destinationAccount->currency->code,
+                        'new_balance' => $destinationAccount->getCurrentBalanceAttribute()
+                    ]
                 ]
-            ]);
+            ], 201);
             
         } catch (\Exception $e) {
             return response()->json([
                 'status' => 'error',
-                'message' => 'Failed to create currency transfer',
-                'error' => $e->getMessage()
+                'message' => 'Currency transfer failed: ' . $e->getMessage()
             ], 500);
         }
     }
@@ -729,10 +727,9 @@ class TransactionApiController extends Controller
     public function getExchangeRate(Request $request)
     {
         try {
-            // Validate input
             $validator = Validator::make($request->all(), [
-                'from_currency' => 'required|string|size:3',
-                'to_currency' => 'required|string|size:3',
+                'from_currency' => 'required|string',
+                'to_currency' => 'required|string',
                 'amount' => 'nullable|numeric|min:0.01'
             ]);
             
@@ -744,14 +741,54 @@ class TransactionApiController extends Controller
                 ], 422);
             }
             
-            // Get the exchange rate service
+            $fromCurrency = $request->from_currency;
+            $toCurrency = $request->to_currency;
+            
+            // Check if we received currency IDs instead of codes
+            if (strlen($fromCurrency) != 3) {
+                // Try to find it as a UUID first
+                $currency = Currency::where('uuid', $fromCurrency)->first();
+                if (!$currency) {
+                    // Then try as a numeric ID
+                    $currency = Currency::find($fromCurrency);
+                }
+                
+                if (!$currency) {
+                    return response()->json([
+                        'status' => 'error',
+                        'message' => 'Source currency not found'
+                    ], 404);
+                }
+                
+                $fromCurrency = $currency->code;
+            }
+            
+            if (strlen($toCurrency) != 3) {
+                // Try to find it as a UUID first
+                $currency = Currency::where('uuid', $toCurrency)->first();
+                if (!$currency) {
+                    // Then try as a numeric ID
+                    $currency = Currency::find($toCurrency);
+                }
+                
+                if (!$currency) {
+                    return response()->json([
+                        'status' => 'error',
+                        'message' => 'Destination currency not found'
+                    ], 404);
+                }
+                
+                $toCurrency = $currency->code;
+            }
+            
+            // Ensure codes are uppercase
+            $fromCurrency = strtoupper($fromCurrency);
+            $toCurrency = strtoupper($toCurrency);
+              // Get the exchange rate service
             $exchangeRateService = app(ExchangeRateService::class);
             
             // Get the exchange rate
-            $rate = $exchangeRateService->getRate(
-                $request->from_currency, 
-                $request->to_currency
-            );
+            $rate = $exchangeRateService->getRate($fromCurrency, $toCurrency);
             
             if ($rate === null) {
                 return response()->json([
@@ -759,10 +796,16 @@ class TransactionApiController extends Controller
                     'message' => 'Failed to get exchange rate'
                 ], 500);
             }
+            else if ($rate <= 0) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Invalid exchange rate received'
+                ], 422);
+            }
             
             $result = [
-                'from_currency' => $request->from_currency,
-                'to_currency' => $request->to_currency,
+                'from_currency' => $fromCurrency,
+                'to_currency' => $toCurrency,
                 'rate' => $rate,
                 'timestamp' => now()->timestamp,
                 'date' => now()->toDateTimeString()
@@ -773,8 +816,7 @@ class TransactionApiController extends Controller
                 $result['amount'] = $request->amount;
                 $result['converted_amount'] = round($request->amount * $rate, 2);
             }
-            
-            return response()->json([
+              return response()->json([
                 'status' => 'success',
                 'data' => $result
             ]);
@@ -782,9 +824,9 @@ class TransactionApiController extends Controller
         } catch (\Exception $e) {
             return response()->json([
                 'status' => 'error',
-                'message' => 'Failed to get exchange rate',
-                'error' => $e->getMessage()
+                'message' => 'Failed to get exchange rate: ' . $e->getMessage()
             ], 500);
         }
     }
+  
 }

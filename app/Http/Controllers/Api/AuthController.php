@@ -6,6 +6,7 @@ use App\Http\Resources\UserResource;
 use App\Models\User;
 use App\Services\AuthService;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 
@@ -160,6 +161,101 @@ class AuthController extends Controller
         return response([
             'message' => __('app.password_reset_success'),
         ]);
+    }
+    
+    /**
+     * Get current user profile
+     */
+    public function profile(Request $request): Response 
+    {
+        /** @var User $user */
+        $user = Auth::user();
+        
+        return response([
+            'message' => 'Profile retrieved successfully',
+            'result' => [
+                'user' => new UserResource($user)
+            ]
+        ], 200);
+    }
+    
+    /**
+     * Update current user profile
+     */
+    public function updateProfile(Request $request): Response 
+    {
+        // Validate request
+        $request->validate([
+            'name' => 'required|string|max:255',
+            'email' => 'required|email|max:255|unique:users,email,' . Auth::id(),
+            'phone' => 'nullable|string|max:20',
+            'bio' => 'nullable|string|max:500',
+            'avatar' => 'nullable|string|max:255',
+            'date_of_birth' => 'nullable|date|before:today',
+            'gender' => 'nullable|in:male,female,other',
+            'country' => 'nullable|string|max:100',
+            'city' => 'nullable|string|max:100',
+            'timezone' => 'nullable|string|max:50',
+        ]);
+
+        /** @var User $user */
+        $user = Auth::user();
+        
+        // Update user profile
+        $user->update([
+            'name' => $request->name,
+            'email' => $request->email,
+            'phone' => $request->phone,
+            'bio' => $request->bio,
+            'avatar' => $request->avatar,
+            'date_of_birth' => $request->date_of_birth,
+            'gender' => $request->gender,
+            'country' => $request->country,
+            'city' => $request->city,
+            'timezone' => $request->timezone ?? 'UTC',
+        ]);
+
+        return response([
+            'message' => 'Profile updated successfully',
+            'result' => [
+                'user' => new UserResource($user->fresh())
+            ]
+        ], 200);
+    }
+    
+    /**
+     * Update current user password
+     */
+    public function updatePassword(Request $request): Response 
+    {
+        // Validate request
+        $request->validate([
+            'current_password' => 'required|string',
+            'password' => 'required|string|min:6|confirmed',
+            'password_confirmation' => 'required|string|min:6',
+        ]);
+
+        /** @var User $user */
+        $user = Auth::user();
+        
+        // Check if current password is correct
+        if (!Hash::check($request->current_password, $user->password)) {
+            return response([
+                'message' => 'Current password is incorrect',
+                'errors' => [
+                    'current_password' => ['Current password is incorrect']
+                ]
+            ], 422);
+        }
+        
+        // Update password
+        $user->update([
+            'password' => Hash::make($request->password)
+        ]);
+
+        return response([
+            'message' => 'Password updated successfully'
+        ], 200);
     }
     
 }

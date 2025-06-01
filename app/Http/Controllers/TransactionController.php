@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Resources\TransactionResource;
 use App\Models\Account;
 use App\Models\Category;
 use App\Models\Transaction;
@@ -416,6 +417,227 @@ class TransactionController extends Controller
     }
     
     /**
+     * Create a transfer between accounts with the same currency.
+     *
+     * @param Request $request
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function transfer(Request $request)
+    {
+        try {
+            // Validate input
+            $validator = Validator::make($request->all(), [
+                'source_account_id' => 'required|string',
+                'destination_account_id' => 'required|string|different:source_account_id',
+                'amount' => 'required|numeric|min:0.01',
+                'description' => 'nullable|string|max:255',
+                'transaction_date' => 'required|date',
+                'is_reconciled' => 'boolean',
+                'reference' => 'nullable|string|max:100'
+            ]);
+            
+            if ($validator->fails()) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Validation failed',
+                    'errors' => $validator->errors()
+                ], 422);
+            }
+            
+            // Get authenticated user
+            $user = Auth::user();
+            
+            // Find accounts by UUID
+            $sourceAccount = Account::where('uuid', $request->source_account_id)->first();
+            $destinationAccount = Account::where('uuid', $request->destination_account_id)->first();
+            
+            if (!$sourceAccount || !$destinationAccount) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'One or both accounts not found'
+                ], 404);
+            }
+            
+            // Verify user owns both accounts
+            if ($sourceAccount->user_id !== $user->id || $destinationAccount->user_id !== $user->id) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Unauthorized access to accounts'
+                ], 403);
+            }
+            
+            // Check if accounts have the same currency
+            if ($sourceAccount->currency_id !== $destinationAccount->currency_id) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Accounts have different currencies. Use currency-transfer endpoint instead.'
+                ], 422);
+            }
+            
+            // Prepare transfer data
+            $transferData = [
+                'source_account_id' => $sourceAccount->id,
+                'destination_account_id' => $destinationAccount->id,
+                'amount' => $request->amount,
+                'description' => $request->description ?? 'Account transfer',
+                'transaction_date' => $request->transaction_date,
+                'is_reconciled' => $request->is_reconciled ?? false,
+                'reference' => $request->reference
+            ];
+            
+            // Create the transfer using the service
+            $result = $this->transactionService->createTransfer($transferData);
+            
+            return response()->json([
+                'status' => 'success',
+                'message' => 'Transfer created successfully',
+                'data' => [
+                    'outgoing' => new TransactionResource($result['outgoing']),
+                    'incoming' => new TransactionResource($result['incoming']),
+                    'source_account' => [
+                        'id' => $sourceAccount->uuid,
+                        'name' => $sourceAccount->name,
+                        'new_balance' => $sourceAccount->getCurrentBalanceAttribute()
+                    ],
+                    'destination_account' => [
+                        'id' => $destinationAccount->uuid,
+                        'name' => $destinationAccount->name,
+                        'new_balance' => $destinationAccount->getCurrentBalanceAttribute()
+                    ]
+                ]
+            ], 201);
+            
+        } catch (\Exception $e) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Transfer failed: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Create a transfer between accounts with different currencies.
+     *
+     * @param Request $request
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function currencyTransfer(Request $request)
+    {
+        try {
+            // Validate input
+            $validator = Validator::make($request->all(), [
+                'source_account_id' => 'required|string',
+                'destination_account_id' => 'required|string|different:source_account_id',
+                'source_amount' => 'required|numeric|min:0.01',
+                'destination_amount' => 'required_without:use_real_time_rate|numeric|min:0.01',
+                'use_real_time_rate' => 'boolean',
+                'description' => 'nullable|string|max:255',
+                'transaction_date' => 'required|date',
+                'is_reconciled' => 'boolean',
+                'reference' => 'nullable|string|max:100'
+            ]);
+            
+            if ($validator->fails()) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Validation failed',
+                    'errors' => $validator->errors()
+                ], 422);
+            }
+            
+            // Get authenticated user
+            $user = Auth::user();
+            
+            // Find accounts by UUID
+            $sourceAccount = Account::where('uuid', $request->source_account_id)->first();
+            $destinationAccount = Account::where('uuid', $request->destination_account_id)->first();
+            
+            if (!$sourceAccount || !$destinationAccount) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'One or both accounts not found'
+                ], 404);
+            }
+            
+            // Verify user owns both accounts
+            if ($sourceAccount->user_id !== $user->id || $destinationAccount->user_id !== $user->id) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Unauthorized access to accounts'
+                ], 403);
+            }
+            
+            $destinationAmount = $request->destination_amount;
+            
+            // If using real-time exchange rate
+            if ($request->use_real_time_rate ?? false) {
+                $exchangeRateService = app(ExchangeRateService::class);
+                $sourceCurrency = $sourceAccount->currency->code;
+                $destinationCurrency = $destinationAccount->currency->code;
+                
+                // Calculate destination amount using real-time rate
+                $calculatedAmount = $exchangeRateService->convertAmount(
+                    $request->source_amount, 
+                    $sourceCurrency, 
+                    $destinationCurrency
+                );
+                
+                if ($calculatedAmount === null) {
+                    return response()->json([
+                        'status' => 'error',
+                        'message' => 'Failed to get real-time exchange rate'
+                    ], 500);
+                }
+                
+                $destinationAmount = $calculatedAmount;
+            }
+            
+            // Prepare transfer data
+            $transferData = [
+                'source_account_id' => $sourceAccount->id,
+                'destination_account_id' => $destinationAccount->id,
+                'source_amount' => $request->source_amount,
+                'destination_amount' => $destinationAmount,
+                'description' => $request->description,
+                'transaction_date' => $request->transaction_date,
+                'is_reconciled' => $request->is_reconciled ?? false,
+                'reference' => $request->reference
+            ];
+            
+            // Create the currency transfer using the service
+            $result = $this->transactionService->createCurrencyTransfer($transferData);
+            
+            return response()->json([
+                'status' => 'success',
+                'message' => 'Currency transfer created successfully',
+                'data' => [
+                    'outgoing' => new TransactionResource($result['outgoing']),
+                    'incoming' => new TransactionResource($result['incoming']),
+                    'exchange_rate' => $result['exchange_rate'],
+                    'source_account' => [
+                        'id' => $sourceAccount->uuid,
+                        'name' => $sourceAccount->name,
+                        'currency' => $sourceAccount->currency->code,
+                        'new_balance' => $sourceAccount->getCurrentBalanceAttribute()
+                    ],
+                    'destination_account' => [
+                        'id' => $destinationAccount->uuid,
+                        'name' => $destinationAccount->name,
+                        'currency' => $destinationAccount->currency->code,
+                        'new_balance' => $destinationAccount->getCurrentBalanceAttribute()
+                    ]
+                ]
+            ], 201);
+            
+        } catch (\Exception $e) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Currency transfer failed: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
      * Get exchange rate between two currencies.
      *
      * @param Request $request
@@ -439,36 +661,36 @@ class TransactionController extends Controller
                 ], 422);
             }
             
+            $fromCurrency = strtoupper($request->from_currency);
+            $toCurrency = strtoupper($request->to_currency);
+            $amount = $request->amount ?? 1;
+            
             // Get the exchange rate service
             $exchangeRateService = app(ExchangeRateService::class);
             
             // Get the exchange rate
-            $rate = $exchangeRateService->getRate(
-                $request->from_currency, 
-                $request->to_currency
-            );
+            $rate = $exchangeRateService->getRate($fromCurrency, $toCurrency);
             
             if ($rate === null) {
                 return response()->json([
                     'status' => 'error',
-                    'message' => 'Failed to get exchange rate'
+                    'message' => 'Failed to get exchange rate for the specified currencies'
                 ], 500);
             }
             
             $result = [
-                'from_currency' => $request->from_currency,
-                'to_currency' => $request->to_currency,
-                'rate' => $rate,
-                'date' => now()->format('Y-m-d H:i:s')
+                'from_currency' => $fromCurrency,
+                'to_currency' => $toCurrency,
+                'exchange_rate' => $rate,
+                'amount' => $amount,
+                'updated_at' => now()->toISOString()
             ];
             
             // Calculate converted amount if provided
             if ($request->has('amount')) {
-                $result['amount'] = $request->amount;
-                $result['converted_amount'] = round($request->amount * $rate, 2);
+                $result['converted_amount'] = round($amount * $rate, 2);
             }
-            
-            return response()->json([
+              return response()->json([
                 'status' => 'success',
                 'data' => $result
             ]);
@@ -482,140 +704,15 @@ class TransactionController extends Controller
     }
     
     /**
-     * Create a transfer between accounts with the same currency.
-     *
-     * @param Request $request
-     * @return \Illuminate\Http\RedirectResponse
+     * Generate API token for authenticated user
      */
-    public function transfer(Request $request)
+    public function generateApiToken()
     {
-        try {
-            // Validate input
-            $validator = Validator::make($request->all(), [
-                'source_account_id' => 'required',
-                'destination_account_id' => 'required|different:source_account_id',
-                'amount' => 'required|numeric|min:0.01',
-                'description' => 'nullable|string|max:255',
-                'transaction_date' => 'required|date',
-                'is_reconciled' => 'boolean',
-                'reference' => 'nullable|string|max:100'
-            ]);
-            
-            if ($validator->fails()) {
-                return redirect()->back()
-                    ->withErrors($validator)
-                    ->withInput();
-            }
-            
-            // Retrieve the accounts
-            $sourceAccount = Account::findOrFail($request->source_account_id);
-            $destinationAccount = Account::findOrFail($request->destination_account_id);
-            
-            // Verify both accounts have the same currency
-            if ($sourceAccount->currency_id !== $destinationAccount->currency_id) {
-                return redirect()->back()
-                    ->withErrors(['error' => 'For accounts with different currencies, use the currency transfer form'])
-                    ->withInput();
-            }
-            
-            // Prepare transfer data
-            $transferData = [
-                'source_account_id' => $sourceAccount->id,
-                'destination_account_id' => $destinationAccount->id,
-                'amount' => $request->amount,
-                'description' => $request->description,
-                'transaction_date' => $request->transaction_date,
-                'is_reconciled' => $request->is_reconciled ?? false,
-                'reference' => $request->reference
-            ];
-            
-            // Create the transfer using the service
-            $result = $this->transactionService->createTransfer($transferData);
-            
-            return redirect()->route('admin.transactions.index')
-                ->with('success', 'Transfer created successfully');
-            
-        } catch (\Exception $e) {
-            return redirect()->back()
-                ->withErrors(['error' => 'Failed to create transfer: ' . $e->getMessage()])
-                ->withInput();
-        }
-    }
-    
-    /**
-     * Create a transfer between accounts with different currencies.
-     *
-     * @param Request $request
-     * @return \Illuminate\Http\RedirectResponse
-     */
-    public function currencyTransfer(Request $request)
-    {
-        try {
-            // Validate input
-            $validator = Validator::make($request->all(), [
-                'source_account_id' => 'required',
-                'destination_account_id' => 'required|different:source_account_id',
-                'source_amount' => 'required|numeric|min:0.01',
-                'destination_amount' => 'required|numeric|min:0.01',
-                'use_real_time_rate' => 'boolean',
-                'description' => 'nullable|string|max:255',
-                'transaction_date' => 'required|date',
-                'is_reconciled' => 'boolean',
-                'reference' => 'nullable|string|max:100'
-            ]);
-            
-            if ($validator->fails()) {
-                return redirect()->back()
-                    ->withErrors($validator)
-                    ->withInput();
-            }
-            
-            // Retrieve the accounts
-            $sourceAccount = Account::findOrFail($request->source_account_id);
-            $destinationAccount = Account::findOrFail($request->destination_account_id);
-            
-            // Verify accounts have different currencies
-            if ($sourceAccount->currency_id === $destinationAccount->currency_id) {
-                return redirect()->back()
-                    ->withErrors(['error' => 'For accounts with the same currency, use the regular transfer form'])
-                    ->withInput();
-            }
-            
-            // Handle the transfer based on whether real-time rates are used
-            if ($request->use_real_time_rate) {
-                $transferData = [
-                    'source_account_id' => $sourceAccount->id,
-                    'destination_account_id' => $destinationAccount->id,
-                    'source_amount' => $request->source_amount,
-                    'description' => $request->description,
-                    'transaction_date' => $request->transaction_date,
-                    'is_reconciled' => $request->is_reconciled ?? false,
-                    'reference' => $request->reference
-                ];
-                
-                $result = $this->transactionService->createCurrencyTransferWithRealTimeRate($transferData);
-            } else {
-                $transferData = [
-                    'source_account_id' => $sourceAccount->id,
-                    'destination_account_id' => $destinationAccount->id,
-                    'source_amount' => $request->source_amount,
-                    'destination_amount' => $request->destination_amount,
-                    'description' => $request->description,
-                    'transaction_date' => $request->transaction_date,
-                    'is_reconciled' => $request->is_reconciled ?? false,
-                    'reference' => $request->reference
-                ];
-                
-                $result = $this->transactionService->createCurrencyTransfer($transferData);
-            }
-            
-            return redirect()->route('admin.transactions.index')
-                ->with('success', 'Currency transfer created successfully');
-            
-        } catch (\Exception $e) {
-            return redirect()->back()
-                ->withErrors(['error' => 'Failed to create currency transfer: ' . $e->getMessage()])
-                ->withInput();
-        }
+        $user = Auth::user();
+        $token = $user->createToken('web-transaction-' . time());
+        
+        return response()->json([
+            'token' => $token->plainTextToken
+        ]);
     }
 }
