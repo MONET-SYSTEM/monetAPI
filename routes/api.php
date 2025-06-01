@@ -19,6 +19,11 @@ Route::controller(AuthController::class)->group(function(){
     Route::post('/otp', 'otp')->name('api.auth.otp')->middleware('auth:sanctum');
     Route::post('/verify', 'verify')->name('api.auth.verify')->middleware('auth:sanctum');
     Route::post('/logout', 'logout')->name('api.auth.logout')->middleware('auth:sanctum');
+    
+    // Profile routes
+    Route::get('/profile', 'profile')->name('api.auth.profile')->middleware('auth:sanctum');
+    Route::put('/profile', 'updateProfile')->name('api.auth.profile.update')->middleware('auth:sanctum');
+    Route::put('/profile/password', 'updatePassword')->name('api.auth.profile.password')->middleware('auth:sanctum');
 });
 
 // Routes for Currency using route::post in POSTMAN API

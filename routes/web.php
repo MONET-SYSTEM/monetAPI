@@ -52,6 +52,10 @@ Route::get('admin/transactions/statistics', [App\Http\Controllers\TransactionCon
 Route::get('admin/transactions/exchange-rate', [App\Http\Controllers\TransactionController::class, 'getExchangeRate'])
     ->middleware('auth')
     ->name('admin.transactions.exchange-rate');
+
+Route::get('admin/transactions/api-token', [App\Http\Controllers\TransactionController::class, 'generateApiToken'])
+    ->middleware('auth')
+    ->name('admin.transactions.api-token');
     
 Route::post('admin/transactions/transfer', [App\Http\Controllers\TransactionController::class, 'transfer'])
     ->middleware('auth')
@@ -90,3 +94,28 @@ Route::get('admin/api/logs/{requestId}', [App\Http\Controllers\ApiMonitorControl
 Route::get('admin/api/export', [App\Http\Controllers\ApiMonitorController::class, 'exportLogs'])
     ->middleware('auth')
     ->name('admin.api.export');
+
+// Profile routes
+Route::get('profile', [App\Http\Controllers\ProfileController::class, 'show'])
+    ->middleware('auth')
+    ->name('profile.show');
+
+Route::get('profile/edit', [App\Http\Controllers\ProfileController::class, 'edit'])
+    ->middleware('auth')
+    ->name('profile.edit');
+
+Route::put('profile', [App\Http\Controllers\ProfileController::class, 'update'])
+    ->middleware('auth')
+    ->name('profile.update');
+
+Route::get('profile/password', [App\Http\Controllers\ProfileController::class, 'editPassword'])
+    ->middleware('auth')
+    ->name('profile.password.edit');
+
+Route::put('profile/password', [App\Http\Controllers\ProfileController::class, 'updatePassword'])
+    ->middleware('auth')
+    ->name('profile.password.update');
+
+Route::delete('profile/avatar', [App\Http\Controllers\ProfileController::class, 'deleteAvatar'])
+    ->middleware('auth')
+    ->name('profile.avatar.delete');
