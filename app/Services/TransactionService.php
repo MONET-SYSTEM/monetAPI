@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\Transaction;
 use App\Models\Account;
 use App\Models\Category;
+use App\Models\Transfer;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\Auth;
@@ -479,84 +480,53 @@ class TransactionService
      */
     public function createTransfer(array $data)
     {
-        return $this->executeWithRetry(function () use ($data) {
-            return DB::transaction(function () use ($data) {
-                // Validate required fields
-                if (!isset($data['source_account_id']) || !isset($data['destination_account_id']) || !isset($data['amount'])) {
-                    throw new \Exception('Missing required transfer data');
-                }
-                
-                // Find source and destination accounts
-                $sourceAccount = null;
-                if (is_numeric($data['source_account_id'])) {
-                    $sourceAccount = Account::find($data['source_account_id']);
-                } else {
-                    $sourceAccount = Account::where('uuid', $data['source_account_id'])->first();
-                }
-                
-                $destinationAccount = null;
-                if (is_numeric($data['destination_account_id'])) {
-                    $destinationAccount = Account::find($data['destination_account_id']);
-                } else {
-                    $destinationAccount = Account::where('uuid', $data['destination_account_id'])->first();
-                }
-                
-                if (!$sourceAccount || !$destinationAccount) {
-                    throw new \Exception('Source or destination account not found');
-                }
-                
-                // Check if this transfer would cause a negative balance in the source account
-                $currentBalance = $sourceAccount->getCurrentBalanceAttribute();
-                if (($currentBalance - $data['amount']) < 0) {
-                    throw new \Exception('Transfer would cause negative balance in the source account. Current balance: ' . $currentBalance);
-                }
-                
-                // Generate a unique transfer reference
-                $transferRef = 'TRANSFER-' . Str::upper(Str::random(8));
-                
-                // Find transfer category
-                $category = Category::where('type', 'transfer')->first();
-                $categoryId = $category ? $category->id : null;
-                
-                // Create outgoing transaction (from source account)
-                $outgoingData = [
-                    'uuid' => $data['uuid'] ?? (string) Str::uuid(),
-                    'account_id' => $sourceAccount->id,
-                    'category_id' => $categoryId,
-                    'amount' => $data['amount'],
-                    'type' => 'transfer',
-                    'description' => $data['description'] ?? 'Transfer to ' . $destinationAccount->name,
-                    'transaction_date' => $data['transaction_date'] ?? now(),
-                    'is_reconciled' => $data['is_reconciled'] ?? false,
-                    'reference' => 'TRANSFER-OUT-' . $transferRef,
-                ];
-                
-                $outgoingTransaction = Transaction::create($outgoingData);
-                
-                // Create incoming transaction (to destination account)
-                $incomingData = [
-                    'uuid' => (string) Str::uuid(),
-                    'account_id' => $destinationAccount->id,
-                    'category_id' => $categoryId,
-                    'amount' => $data['amount'],
-                    'type' => 'transfer',
-                    'description' => $data['description'] ?? 'Transfer from ' . $sourceAccount->name,
-                    'transaction_date' => $data['transaction_date'] ?? now(),
-                    'is_reconciled' => $data['is_reconciled'] ?? false,
-                    'reference' => 'TRANSFER-IN-' . $transferRef,
-                ];
-                
-                $incomingTransaction = Transaction::create($incomingData);
-                
-                // Refresh the models to get relationships
-                $outgoingTransaction->refresh();
-                $incomingTransaction->refresh();
-                
-                return [
-                    'outgoing' => $outgoingTransaction,
-                    'incoming' => $incomingTransaction,
-                ];
-            });
+        // Start a database transaction
+        return DB::transaction(function () use ($data) {
+            // Create the outgoing transaction
+            $sourceTransaction = $this->createTransaction([
+                'account_id' => $data['source_account_id'],
+                'amount' => $data['amount'],
+                'type' => 'transfer',
+                'description' => $data['description'] ?? 'Transfer to another account',
+                'transaction_date' => $data['transaction_date'],
+                'is_reconciled' => $data['is_reconciled'] ?? false,
+                'category_id' => $data['category_id'] ?? null
+            ]);
+
+            // Create the incoming transaction
+            $destinationTransaction = $this->createTransaction([
+                'account_id' => $data['destination_account_id'],
+                'amount' => $data['destination_amount'] ?? $data['amount'],
+                'type' => 'transfer',
+                'description' => $data['description'] ?? 'Transfer from another account',
+                'transaction_date' => $data['transaction_date'],
+                'is_reconciled' => $data['is_reconciled'] ?? false,
+                'category_id' => $data['category_id'] ?? null
+            ]);
+
+            // Calculate exchange rate if different amounts
+            $exchangeRate = null;
+            $usedRealTimeRate = false;
+            
+            if (isset($data['destination_amount']) && $data['destination_amount'] != $data['amount']) {
+                $exchangeRate = $data['destination_amount'] / $data['amount'];
+                $usedRealTimeRate = $data['use_real_time_rate'] ?? false;
+            }
+
+            // Create the transfer record linking both transactions
+            $transfer = Transfer::create([
+                'source_transaction_id' => $sourceTransaction->id,
+                'destination_transaction_id' => $destinationTransaction->id,
+                'exchange_rate' => $exchangeRate,
+                'used_real_time_rate' => $usedRealTimeRate
+            ]);
+
+            return [
+                'outgoing' => $sourceTransaction,
+                'incoming' => $destinationTransaction,
+                'transfer' => $transfer,
+                'exchange_rate' => $exchangeRate
+            ];
         });
     }
 
@@ -569,101 +539,52 @@ class TransactionService
      */
     public function createCurrencyTransfer(array $data)
     {
-        return $this->executeWithRetry(function () use ($data) {
-            return DB::transaction(function () use ($data) {
-                // Validate required fields
-                if (!isset($data['source_account_id']) || !isset($data['destination_account_id']) || 
-                    !isset($data['source_amount']) || !isset($data['destination_amount'])) {
-                    throw new \Exception('Missing required transfer data');
-                }
-                
-                // Find source and destination accounts
-                $sourceAccount = null;
-                if (is_numeric($data['source_account_id'])) {
-                    $sourceAccount = Account::find($data['source_account_id']);
-                } else {
-                    $sourceAccount = Account::where('uuid', $data['source_account_id'])->first();
-                }
-                
-                $destinationAccount = null;
-                if (is_numeric($data['destination_account_id'])) {
-                    $destinationAccount = Account::find($data['destination_account_id']);
-                } else {
-                    $destinationAccount = Account::where('uuid', $data['destination_account_id'])->first();
-                }
-                
-                if (!$sourceAccount || !$destinationAccount) {
-                    throw new \Exception('Source or destination account not found');
-                }
-                
-                // Check if this transfer would cause a negative balance in the source account
-                $currentBalance = $sourceAccount->getCurrentBalanceAttribute();
-                if (($currentBalance - $data['source_amount']) < 0) {
-                    throw new \Exception('Transfer would cause negative balance in the source account. Current balance: ' . $currentBalance);
-                }
-                
-                // Calculate exchange rate for reference
-                $exchangeRate = $data['destination_amount'] / $data['source_amount'];
-                
-                // Generate a unique transfer reference
-                $transferRef = 'FX-TRANSFER-' . Str::upper(Str::random(8));
-                
-                // Find transfer category
-                $category = Category::where('type', 'transfer')->first();
-                $categoryId = $category ? $category->id : null;
-                
-                // Create outgoing transaction (from source account)
-                $outgoingData = [
-                    'uuid' => $data['uuid'] ?? (string) Str::uuid(),
-                    'account_id' => $sourceAccount->id,
-                    'category_id' => $categoryId,
-                    'amount' => $data['source_amount'],
-                    'type' => 'transfer',
-                    'description' => $data['description'] ?? sprintf(
-                        'Currency transfer to %s (Rate: 1 %s = %.4f %s)', 
-                        $destinationAccount->name,
-                        $sourceAccount->currency->code,
-                        $exchangeRate,
-                        $destinationAccount->currency->code
-                    ),
-                    'transaction_date' => $data['transaction_date'] ?? now(),
-                    'is_reconciled' => $data['is_reconciled'] ?? false,
-                    'reference' => 'TRANSFER-OUT-' . $transferRef,
-                ];
-                
-                $outgoingTransaction = Transaction::create($outgoingData);
-                
-                // Create incoming transaction (to destination account)
-                $incomingData = [
-                    'uuid' => (string) Str::uuid(),
-                    'account_id' => $destinationAccount->id,
-                    'category_id' => $categoryId,
-                    'amount' => $data['destination_amount'],
-                    'type' => 'transfer',
-                    'description' => $data['description'] ?? sprintf(
-                        'Currency transfer from %s (Rate: 1 %s = %.4f %s)', 
-                        $sourceAccount->name,
-                        $sourceAccount->currency->code,
-                        $exchangeRate,
-                        $destinationAccount->currency->code
-                    ),
-                    'transaction_date' => $data['transaction_date'] ?? now(),
-                    'is_reconciled' => $data['is_reconciled'] ?? false,
-                    'reference' => 'TRANSFER-IN-' . $transferRef,
-                ];
-                
-                $incomingTransaction = Transaction::create($incomingData);
-                
-                // Refresh the models to get relationships
-                $outgoingTransaction->refresh();
-                $incomingTransaction->refresh();
-                
-                return [
-                    'outgoing' => $outgoingTransaction,
-                    'incoming' => $incomingTransaction,
-                    'exchange_rate' => $exchangeRate,
-                ];
-            });
+        return DB::transaction(function () use ($data) {
+            // Calculate exchange rate
+            $exchangeRate = null;
+            $useRealTimeRate = $data['use_real_time_rate'] ?? false;
+            
+            if (isset($data['source_amount']) && isset($data['destination_amount'])) {
+                // Calculate exchange rate: destination_amount / source_amount
+                $exchangeRate = round($data['destination_amount'] / $data['source_amount'], 6);
+            }
+            
+            // Create the outgoing transaction (source account)
+            $sourceTransaction = $this->createTransaction([
+                'account_id' => $data['source_account_id'],
+                'amount' => $data['source_amount'],
+                'type' => 'transfer',
+                'description' => $data['description'] ?? 'Currency transfer',
+                'transaction_date' => $data['transaction_date'],
+                'is_reconciled' => $data['is_reconciled'] ?? false,
+                'reference' => $data['reference'] ?? 'TRANSFER-OUT-FX-' . strtoupper(Str::random(8))
+            ]);
+
+            // Create the incoming transaction (destination account)
+            $destinationTransaction = $this->createTransaction([
+                'account_id' => $data['destination_account_id'],
+                'amount' => $data['destination_amount'],
+                'type' => 'transfer',
+                'description' => $data['description'] ?? 'Currency transfer',
+                'transaction_date' => $data['transaction_date'],
+                'is_reconciled' => $data['is_reconciled'] ?? false,
+                'reference' => $data['reference'] ?? 'TRANSFER-IN-FX-' . strtoupper(Str::random(8))
+            ]);
+
+            // Create the transfer record that links the two transactions
+            $transfer = new \App\Models\Transfer();
+            $transfer->source_transaction_id = $sourceTransaction->id;
+            $transfer->destination_transaction_id = $destinationTransaction->id;
+            $transfer->exchange_rate = $exchangeRate;
+            $transfer->used_real_time_rate = $useRealTimeRate;
+            $transfer->save();
+
+            return [
+                'outgoing' => $sourceTransaction,
+                'incoming' => $destinationTransaction,
+                'transfer' => $transfer,  // Make sure this is included
+                'exchange_rate' => $exchangeRate
+            ];
         });
     }
 
@@ -736,11 +657,11 @@ class TransactionService
                     'amount' => $data['source_amount'],
                     'type' => 'transfer',
                     'description' => $data['description'] ?? sprintf(
-                        'Currency transfer to %s (Rate: 1 %s = %.4f %s) [Real-time rate]', 
+                        'Currency transfer to %s (Rate: 1 %s = %.4f %s)', 
                         $destinationAccount->name,
-                        $sourceCurrency,
+                        $sourceAccount->currency->code,
                         $exchangeRate,
-                        $destinationCurrency
+                        $destinationAccount->currency->code
                     ),
                     'transaction_date' => $data['transaction_date'] ?? now(),
                     'is_reconciled' => $data['is_reconciled'] ?? false,
@@ -757,11 +678,11 @@ class TransactionService
                     'amount' => $destinationAmount,
                     'type' => 'transfer',
                     'description' => $data['description'] ?? sprintf(
-                        'Currency transfer from %s (Rate: 1 %s = %.4f %s) [Real-time rate]', 
+                        'Currency transfer from %s (Rate: 1 %s = %.4f %s)', 
                         $sourceAccount->name,
-                        $sourceCurrency,
+                        $sourceAccount->currency->code,
                         $exchangeRate,
-                        $destinationCurrency
+                        $destinationAccount->currency->code
                     ),
                     'transaction_date' => $data['transaction_date'] ?? now(),
                     'is_reconciled' => $data['is_reconciled'] ?? false,

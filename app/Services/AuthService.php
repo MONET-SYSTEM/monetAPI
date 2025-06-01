@@ -11,15 +11,14 @@ use Illuminate\Support\Facades\Mail;
 use App\Mail\OtpMail;
 use Carbon\Carbon;
 
-class AuthService {
-    public function register(object $request) : User {
+class AuthService {    public function register(object $request) : User {
 
         // Create user
         $user = User::create([ 
             'uuid' => Str::uuid(),
             'name' => $request->name,
             'email' => $request->email,
-            'password' => $request->password,
+            'password' => Hash::make($request->password),
         ]);
 
         $this->otp($user);
@@ -66,12 +65,11 @@ class AuthService {
         Mail::to($user->email)->send(new OtpMail($user, $otp));
     
         return $otp;
-    }
-
-    public function verify(User $user, object $request) : User {
+    }    public function verify(User $user, object $request) : User {
         $otp = Otp::where([
             'user_id' => $user->id,
             'code' => $request->otp,
+            'type' => 'verification',
             'active' => 1
         ])->first();
 
@@ -79,13 +77,19 @@ class AuthService {
             abort(422, __('app.invalid_otp'));
         }    
 
-        // Update OTP
-        $user->email_verified_at = Carbon::now();
-        $user->update();
+        // Check if OTP is not too old (optional: add 10 minute expiry)
+        $expiryTime = Carbon::parse($otp->created_at)->addMinutes(10);
+        if (Carbon::now()->greaterThan($expiryTime)) {
+            abort(422, __('app.otp_expired'));
+        }
 
+        // Update user verification
+        $user->email_verified_at = Carbon::now();
+        $user->save();
+
+        // Deactivate OTP
         $otp->active = 0;
-        $otp->updated_at = Carbon::now();
-        $otp->update();
+        $otp->save();
 
         return $user;
     }
@@ -93,9 +97,7 @@ class AuthService {
     public function getUserByEmail(string $email): User
     {
         return User::where('email', $email)->first();
-    }
-
-    public function resetPassword(User $user, object $request): User
+    }    public function resetPassword(User $user, object $request): User
     {
         $otp = Otp::where([
             'user_id' => $user->id,
@@ -108,14 +110,19 @@ class AuthService {
             abort(422, __('app.invalid_otp'));
         }
 
-        // Update
-        $user->password = $request->password;
-        $user->updated_at = Carbon::now();
-        $user->update();
+        // Check if OTP is not too old (10 minute expiry for password reset)
+        $expiryTime = Carbon::parse($otp->created_at)->addMinutes(10);
+        if (Carbon::now()->greaterThan($expiryTime)) {
+            abort(422, __('app.otp_expired'));
+        }
 
+        // Update password with proper hashing
+        $user->password = Hash::make($request->password);
+        $user->save();
+
+        // Deactivate OTP
         $otp->active = 0;
-        $otp->updated_at = Carbon::now();
-        $otp->update();
+        $otp->save();
 
         return $user;
     }

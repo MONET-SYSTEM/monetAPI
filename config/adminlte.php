@@ -396,13 +396,18 @@ return [
         ],
         ['header' => 'account_settings'],
         [
-            'text' => 'profile',
-            'url' => 'admin/settings',
+            'text' => 'My Profile',
+            'url' => 'profile',
             'icon' => 'fas fa-fw fa-user',
         ],
         [
-            'text' => 'change_password',
-            'url' => 'admin/settings',
+            'text' => 'Edit Profile',
+            'url' => 'profile/edit',
+            'icon' => 'fas fa-fw fa-edit',
+        ],
+        [
+            'text' => 'Change Password',
+            'url' => 'profile/password',
             'icon' => 'fas fa-fw fa-lock',
         ],
     ],

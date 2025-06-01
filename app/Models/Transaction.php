@@ -113,9 +113,33 @@ class Transaction extends BaseModel
     }
 
     /**
-     * Check if this transaction is a transfer
-     *
-     * @return bool
+     * Get the transfer where this transaction is the source.
+     */
+    public function outgoingTransfer()
+    {
+        return $this->hasOne(Transfer::class, 'source_transaction_id');
+    }
+
+    /**
+     * Get the transfer where this transaction is the destination.
+     */
+    public function incomingTransfer()
+    {
+        return $this->hasOne(Transfer::class, 'destination_transaction_id');
+    }
+
+    /**
+     * Get the related transfer, regardless of direction.
+     */
+    public function transfer()
+    {
+        return $this->outgoingTransfer()->orWhere(function($query) {
+            $query->where('destination_transaction_id', $this->id);
+        });
+    }
+
+    /**
+     * Determine if this transaction is part of a transfer.
      */
     public function isTransfer(): bool
     {
@@ -123,33 +147,32 @@ class Transaction extends BaseModel
     }
 
     /**
-     * Check if this transaction is a transfer out (money leaving account)
-     *
-     * @return bool
+     * Determine if this transaction is outgoing (source) of a transfer.
      */
     public function isTransferOut(): bool
     {
-        return $this->isTransfer() && str_starts_with($this->reference ?? '', 'TRANSFER-OUT');
+        return $this->isTransfer() && $this->outgoingTransfer()->exists();
     }
 
     /**
-     * Check if this transaction is a transfer in (money entering account)
-     *
-     * @return bool
+     * Determine if this transaction is incoming (destination) of a transfer.
      */
     public function isTransferIn(): bool
     {
-        return $this->isTransfer() && str_starts_with($this->reference ?? '', 'TRANSFER-IN');
+        return $this->isTransfer() && $this->incomingTransfer()->exists();
     }
 
     /**
      * Check if this transaction is a currency transfer
-     *
-     * @return bool
      */
     public function isCurrencyTransfer(): bool
     {
-        return $this->isTransfer() && str_contains($this->reference ?? '', 'FX-TRANSFER');
+        if (!$this->isTransfer()) {
+            return false;
+        }
+        
+        $transfer = $this->outgoingTransfer ?? $this->incomingTransfer;
+        return $transfer && !is_null($transfer->exchange_rate);
     }
 
     /**
