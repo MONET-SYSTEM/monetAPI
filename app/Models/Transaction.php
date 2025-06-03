@@ -175,6 +175,8 @@ class Transaction extends BaseModel
         return $transfer && !is_null($transfer->exchange_rate);
     }
 
+    
+
     /**
      * Get the transfer direction label
      *
