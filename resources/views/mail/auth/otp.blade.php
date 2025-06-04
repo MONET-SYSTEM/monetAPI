@@ -1,5 +1,5 @@
 <x-mail::message>
-Hi {{ $user->name }},
+<strong>Hi {{ $user->name }},</strong>
 
 Your 6-digit code is:
 
