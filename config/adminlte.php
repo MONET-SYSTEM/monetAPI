@@ -378,22 +378,6 @@ return [
                 ],
             ],
         ],
-        [
-            'text'    => 'API Management',
-            'icon'    => 'fas fa-code',
-            'submenu' => [
-                [
-                    'text' => 'API Monitor',
-                    'url'  => 'admin/api/monitor', 
-                    'icon' => 'fas fa-chart-line',
-                ],
-                [
-                    'text' => 'Export Logs',
-                    'url'  => 'admin/api/export',
-                    'icon' => 'fas fa-file-export',
-                ],
-            ],
-        ],
         ['header' => 'account_settings'],
         [
             'text' => 'My Profile',

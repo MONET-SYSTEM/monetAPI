@@ -61,14 +61,6 @@ class Transaction extends BaseModel
     }
 
     /**
-     * Get the attachments for this transaction.
-     */
-    public function attachments()
-    {
-        return $this->hasMany(TransactionAttachment::class);
-    }
-
-    /**
      * Get formatted amount with currency symbol
      */
     public function getAmountTextAttribute(): string

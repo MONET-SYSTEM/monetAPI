@@ -40,17 +40,6 @@ class TransactionResource extends JsonResource
             'reference' => $this->reference,
             'created_at' => $this->created_at->format('Y-m-d H:i:s'),
             'updated_at' => $this->updated_at->format('Y-m-d H:i:s'),
-            'attachments' => $this->whenLoaded('attachments', function() {
-                return $this->attachments->map(function($attachment) {
-                    return [
-                        'id' => $attachment->uuid,
-                        'filename' => $attachment->filename,
-                        'file_path' => $attachment->file_path,
-                        'file_size' => $attachment->file_size,
-                        'mime_type' => $attachment->mime_type,
-                    ];
-                });
-            }),
         ];
     }
 }
