@@ -195,7 +195,6 @@ class AuthController extends Controller
             'gender' => 'nullable|in:male,female,other',
             'country' => 'nullable|string|max:100',
             'city' => 'nullable|string|max:100',
-            'timezone' => 'nullable|string|max:50',
         ]);
 
         /** @var User $user */
@@ -212,7 +211,6 @@ class AuthController extends Controller
             'gender' => $request->gender,
             'country' => $request->country,
             'city' => $request->city,
-            'timezone' => $request->timezone ?? 'UTC',
         ]);
 
         return response([

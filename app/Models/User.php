@@ -31,7 +31,6 @@ class User extends Authenticatable
         'gender',
         'country',
         'city',
-        'timezone',
     ];
 
     /**

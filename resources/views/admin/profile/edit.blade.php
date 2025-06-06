@@ -132,30 +132,7 @@
                                        value="{{ old('city', $user->city) }}" 
                                        placeholder="Enter your city">
                                 @error('city')
-                                    <span class="invalid-feedback">{{ $message }}</span>
-                                @enderror
-                            </div>
-
-                            <div class="form-group">
-                                <label for="timezone">Timezone</label>
-                                <select name="timezone" 
-                                        id="timezone" 
-                                        class="form-control @error('timezone') is-invalid @enderror">
-                                    <option value="">Select Timezone</option>
-                                    <option value="UTC" {{ old('timezone', $user->timezone) == 'UTC' ? 'selected' : '' }}>UTC</option>
-                                    <option value="America/New_York" {{ old('timezone', $user->timezone) == 'America/New_York' ? 'selected' : '' }}>Eastern Time (US & Canada)</option>
-                                    <option value="America/Chicago" {{ old('timezone', $user->timezone) == 'America/Chicago' ? 'selected' : '' }}>Central Time (US & Canada)</option>
-                                    <option value="America/Denver" {{ old('timezone', $user->timezone) == 'America/Denver' ? 'selected' : '' }}>Mountain Time (US & Canada)</option>
-                                    <option value="America/Los_Angeles" {{ old('timezone', $user->timezone) == 'America/Los_Angeles' ? 'selected' : '' }}>Pacific Time (US & Canada)</option>
-                                    <option value="Europe/London" {{ old('timezone', $user->timezone) == 'Europe/London' ? 'selected' : '' }}>London</option>
-                                    <option value="Europe/Paris" {{ old('timezone', $user->timezone) == 'Europe/Paris' ? 'selected' : '' }}>Paris</option>
-                                    <option value="Asia/Tokyo" {{ old('timezone', $user->timezone) == 'Asia/Tokyo' ? 'selected' : '' }}>Tokyo</option>
-                                    <option value="Asia/Shanghai" {{ old('timezone', $user->timezone) == 'Asia/Shanghai' ? 'selected' : '' }}>Shanghai</option>
-                                    <option value="Asia/Manila" {{ old('timezone', $user->timezone) == 'Asia/Manila' ? 'selected' : '' }}>Manila</option>
-                                </select>
-                                @error('timezone')
-                                    <span class="invalid-feedback">{{ $message }}</span>
-                                @enderror
+                                    <span class="invalid-feedback">{{ $message }}</span>                            @enderror
                             </div>
 
                             <div class="form-group">

@@ -42,8 +42,7 @@ class ProfileController extends Controller
         /** @var User $user */
         $user = Auth::user();
 
-        $request->validate([
-            'name' => 'required|string|max:255',
+        $request->validate([            'name' => 'required|string|max:255',
             'email' => 'required|email|max:255|unique:users,email,' . $user->id,
             'phone' => 'nullable|string|max:20',
             'bio' => 'nullable|string|max:500',
@@ -51,13 +50,10 @@ class ProfileController extends Controller
             'gender' => 'nullable|in:male,female,other',
             'country' => 'nullable|string|max:100',
             'city' => 'nullable|string|max:100',
-            'timezone' => 'nullable|string|max:50',
             'avatar' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048',
-        ]);
-
-        $data = $request->only([
+        ]);        $data = $request->only([
             'name', 'email', 'phone', 'bio', 'date_of_birth', 
-            'gender', 'country', 'city', 'timezone'
+            'gender', 'country', 'city'
         ]);
 
         // Handle avatar upload

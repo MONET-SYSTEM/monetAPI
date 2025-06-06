@@ -102,14 +102,7 @@
                     @if($user->city)
                     <tr>
                         <th>City</th>
-                        <td>{{ $user->city }}</td>
-                    </tr>
-                    @endif
-                    @if($user->timezone)
-                    <tr>
-                        <th>Timezone</th>
-                        <td>{{ $user->timezone }}</td>
-                    </tr>
+                        <td>{{ $user->city }}</td>                    </tr>
                     @endif
                     <tr>
                         <th>Member Since</th>
