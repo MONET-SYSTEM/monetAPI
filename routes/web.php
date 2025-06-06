@@ -82,19 +82,6 @@ Route::post('admin/transactions/transfer', [App\Http\Controllers\TransactionCont
     ->middleware('auth')
     ->name('admin.transactions.transfer');
 
-// API Monitoring routes
-Route::get('admin/api/monitor', [App\Http\Controllers\ApiMonitorController::class, 'index'])
-    ->middleware('auth')
-    ->name('admin.api.monitor');
-
-Route::get('admin/api/logs/{requestId}', [App\Http\Controllers\ApiMonitorController::class, 'showLog'])
-    ->middleware('auth')
-    ->name('admin.api.logs.show');
-
-Route::get('admin/api/export', [App\Http\Controllers\ApiMonitorController::class, 'exportLogs'])
-    ->middleware('auth')
-    ->name('admin.api.export');
-
 // Profile routes
 Route::get('profile', [App\Http\Controllers\ProfileController::class, 'show'])
     ->middleware('auth')
