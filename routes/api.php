@@ -8,6 +8,7 @@ use App\Http\Controllers\Api\CurrencyController;
 use App\Http\Controllers\Api\AccountController;
 use App\Http\Controllers\Api\TransactionApiController;
 use App\Http\Controllers\Api\CategoryApiController;
+use App\Http\Controllers\Api\BudgetApiController;
 
 // Routes for Authentication using route::post in POSTMAN API
 Route::controller(AuthController::class)->group(function(){
@@ -70,6 +71,17 @@ Route::controller(CategoryApiController::class)->group(function () {
     Route::post('/category', 'store')->name('api.category.store')->middleware('auth:sanctum');
     Route::put('/category/{uuid}', 'update')->name('api.category.update')->middleware('auth:sanctum');
     Route::delete('/category/{uuid}', 'destroy')->name('api.category.destroy')->middleware('auth:sanctum');
+});
+
+// Routes for Budgets
+Route::controller(BudgetApiController::class)->group(function () {
+    Route::get('/budget', 'index')->name('api.budget.index')->middleware('auth:sanctum');
+    Route::get('/budget/statistics', 'statistics')->name('api.budget.statistics')->middleware('auth:sanctum');
+    Route::get('/budget/{uuid}', 'show')->name('api.budget.show')->middleware('auth:sanctum');
+    Route::get('/budget/{uuid}/performance', 'performance')->name('api.budget.performance')->middleware('auth:sanctum');
+    Route::post('/budget', 'store')->name('api.budget.store')->middleware('auth:sanctum');
+    Route::put('/budget/{uuid}', 'update')->name('api.budget.update')->middleware('auth:sanctum');
+    Route::delete('/budget/{uuid}', 'destroy')->name('api.budget.destroy')->middleware('auth:sanctum');
 });
 
 
