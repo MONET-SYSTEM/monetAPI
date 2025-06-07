@@ -31,7 +31,9 @@ Route::controller(AuthController::class)->group(function(){
 Route::controller(CurrencyController::class)->group(function(){
     Route::get('/currency', 'index')->name('api.currency.index')->middleware('auth:sanctum');
     Route::get('/currency/{id}', 'get')->name('api.currency.get')->middleware('auth:sanctum');
-
+    Route::post('/currency', 'store')->name('api.currency.store')->middleware('auth:sanctum');
+    Route::put('/currency/{uuid}', 'update')->name('api.currency.update')->middleware('auth:sanctum');
+    Route::delete('/currency/{uuid}', 'destroy')->name('api.currency.destroy')->middleware('auth:sanctum');
 });
 
 // Routes for Account types using route::post in POSTMAN API

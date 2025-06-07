@@ -107,6 +107,7 @@ class AccountController extends Controller
     {
         $request->validate([
             'account_type' => 'required|exists:account_types,uuid',
+            'currency' => 'required|exists:currencies,uuid',
             'name' => 'required|max:255',
             'initial_balance' => 'required|numeric',
             'colour_code' => 'nullable|max:255',

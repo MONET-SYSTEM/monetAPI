@@ -85,7 +85,17 @@ class AccountService
             abort(404, __('app.data_not_found', ['data' => __('app.account_type')]));
         }
 
+        $currency = Currency::where([
+            'uuid' => $request->currency,
+            'active' => 1
+        ])->first();
+
+        if (!$currency) {
+            abort(404, __('app.data_not_found', ['data' => __('app.currency')]));
+        }
+
         $account->account_type_id = $accountType->id;
+        $account->currency_id = $currency->id;
         $account->name = $request->name;
         $account->initial_balance = $request->initial_balance;
         $account->colour_code = $request->colour_code;

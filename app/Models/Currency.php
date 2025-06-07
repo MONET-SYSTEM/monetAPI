@@ -2,6 +2,8 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Relations\HasMany;
+
 class Currency extends BaseModel
 {
     /**
@@ -34,4 +36,11 @@ class Currency extends BaseModel
             : ($this->symbol . ' ' . $value);
     }
 
+    /**
+     * Get all accounts that use this currency
+     */
+    public function accounts(): HasMany
+    {
+        return $this->hasMany(Account::class);
+    }
 }
