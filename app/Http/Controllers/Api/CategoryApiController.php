@@ -4,6 +4,7 @@ namespace App\Http\Controllers\API;
 
 use App\Http\Controllers\Controller;
 use App\Http\Resources\CategoryResource;
+use App\Models\Account;
 use App\Models\Category;
 use App\Services\CategoryService;
 use Illuminate\Http\Request;
@@ -232,9 +233,7 @@ class CategoryApiController extends Controller
                 'message' => $e->getMessage(),
             ], $statusCode);
         }
-    }
-
-    /**
+    }    /**
      * Get transactions for a specific category.
      *
      * @param Request $request
@@ -244,6 +243,9 @@ class CategoryApiController extends Controller
     public function transactions(Request $request, $uuid)
     {
         try {
+            // Get the authenticated user
+            $user = Auth::user();
+            
             // Find the category by UUID
             $category = $this->categoryService->findByUuid($uuid);
             
@@ -254,18 +256,29 @@ class CategoryApiController extends Controller
                 ], 404);
             }
             
+            // Validate account ownership if account_id is provided
+            $accountId = $request->input('account_id');
+            if ($accountId) {
+                $account = Account::find($accountId);
+                if (!$account || $account->user_id !== $user->id) {
+                    return response()->json([
+                        'status' => 'error',
+                        'message' => 'Unauthorized access to this account'
+                    ], 403);
+                }
+            }
+            
             // Prepare filters
             $filters = [
                 'start_date' => $request->input('start_date'),
                 'end_date' => $request->input('end_date'),
-                'account_id' => $request->input('account_id')
+                'account_id' => $accountId
             ];
             
             $perPage = $request->input('per_page', 15);
-            
-            // Get transactions by category using the transaction service
+              // Get transactions by category using the transaction service with user ID for security
             $transactionService = app(\App\Services\TransactionService::class);
-            $transactions = $transactionService->getTransactionsByCategory($category->uuid, $filters, $perPage);
+            $transactions = $transactionService->getTransactionsByCategory($category->uuid, $filters, $perPage, $user->id);
             
             return response()->json([
                 'status' => 'success',
@@ -284,9 +297,7 @@ class CategoryApiController extends Controller
                 'error' => $e->getMessage()
             ], 500);
         }
-    }
-
-    /**
+    }    /**
      * Get statistics for a specific category.
      *
      * @param Request $request
@@ -296,6 +307,9 @@ class CategoryApiController extends Controller
     public function statistics(Request $request, $uuid)
     {
         try {
+            // Get the authenticated user
+            $user = Auth::user();
+            
             // Find the category by UUID
             $category = $this->categoryService->findByUuid($uuid);
             
@@ -311,9 +325,20 @@ class CategoryApiController extends Controller
             $endDate = $request->input('end_date', now()->format('Y-m-d'));
             $accountId = $request->input('account_id');
             
-            // Get category statistics
+            // Validate account ownership if account_id is provided
+            if ($accountId) {
+                $account = Account::find($accountId);
+                if (!$account || $account->user_id !== $user->id) {
+                    return response()->json([
+                        'status' => 'error',
+                        'message' => 'Unauthorized access to this account'
+                    ], 403);
+                }
+            }
+            
+            // Get category statistics with user ID for security
             $transactionService = app(\App\Services\TransactionService::class);
-            $statistics = $transactionService->getCategoryStatistics($category->uuid, $startDate, $endDate, $accountId);
+            $statistics = $transactionService->getCategoryStatistics($category->uuid, $startDate, $endDate, $accountId, $user->id);
             
             return response()->json([
                 'status' => 'success',

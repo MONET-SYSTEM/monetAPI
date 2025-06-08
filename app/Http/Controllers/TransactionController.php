@@ -129,8 +129,17 @@ class TransactionController extends Controller
         }
         
         try {
-            // Create the transaction using the service
-            $transaction = $this->transactionService->createTransaction($request->all());
+            // Create the transaction directly
+            $transaction = Transaction::create([
+                'account_id' => $request->account_id,
+                'amount' => $request->amount,
+                'type' => $request->type,
+                'category_id' => $request->category_id,
+                'description' => $request->description,
+                'transaction_date' => $request->transaction_date,
+                'is_reconciled' => $request->is_reconciled ?? false,
+                'reference' => $request->reference,
+            ]);
             
             return redirect()->route('admin.transactions.index')
                 ->with('success', 'Transaction created successfully.');

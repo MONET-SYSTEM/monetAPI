@@ -37,6 +37,9 @@ class TransactionApiController extends Controller
      */    public function index(Request $request)
     {
         try {
+            // Get the authenticated user
+            $user = Auth::user();
+            
             // Prepare filters from request data
             $filters = [
                 'account_id' => $request->account_id,
@@ -48,9 +51,9 @@ class TransactionApiController extends Controller
                 'is_reconciled' => $request->has('is_reconciled') ? $request->is_reconciled : null,
             ];
             
-            // Get transactions using the service
+            // Get transactions using the service with user filtering for security
             $perPage = $request->input('per_page', 15);
-            $transactions = $this->transactionService->getTransactions($filters, $perPage);
+            $transactions = $this->transactionService->getTransactions($filters, $perPage, $user->id);
             
             return response()->json([
                 'status' => 'success',
@@ -207,25 +210,17 @@ class TransactionApiController extends Controller
             // Get the authenticated user
             $user = Auth::user();
             
-            // Use the service to find the transaction by UUID
-            $transaction = $this->transactionService->findByUuid($uuid);
+            // Find the transaction by UUID with user authorization
+            $transaction = $this->transactionService->findByUuid($uuid, $user->id);
             
             if (!$transaction) {
                 return response()->json([
                     'status' => 'error',
-                    'message' => 'Transaction not found'
+                    'message' => 'Transaction not found or unauthorized access'
                 ], 404);
             }
             
-            // Verify the account belongs to the user
-            $account = Account::find($transaction->account_id);
-            if (!$account || $account->user_id !== $user->id) {
-                return response()->json([
-                    'status' => 'error',
-                    'message' => 'Unauthorized access to this transaction'
-                ], 403);
-            }
-              return response()->json([
+            return response()->json([
                 'status' => 'success',
                 'data' => new \App\Http\Resources\TransactionResource($transaction)
             ]);
@@ -251,23 +246,14 @@ class TransactionApiController extends Controller
             // Get the authenticated user
             $user = Auth::user();
             
-            // Find the transaction by UUID
-            $transaction = Transaction::where('uuid', $uuid)->first();
+            // Find the transaction by UUID with user authorization
+            $transaction = $this->transactionService->findByUuid($uuid, $user->id);
             
             if (!$transaction) {
                 return response()->json([
                     'status' => 'error',
-                    'message' => 'Transaction not found'
+                    'message' => 'Transaction not found or unauthorized access'
                 ], 404);
-            }
-            
-            // Verify the account belongs to the user
-            $account = Account::find($transaction->account_id);
-            if (!$account || $account->user_id !== $user->id) {
-                return response()->json([
-                    'status' => 'error',
-                    'message' => 'Unauthorized access to this transaction'
-                ], 403);
             }
               // Validate input with custom validation for user accounts and categories
             $validator = Validator::make($request->all(), [
@@ -389,23 +375,14 @@ class TransactionApiController extends Controller
             // Get the authenticated user
             $user = Auth::user();
             
-            // Find the transaction by UUID using the service
-            $transaction = $this->transactionService->findByUuid($uuid);
+            // Find the transaction by UUID with user authorization
+            $transaction = $this->transactionService->findByUuid($uuid, $user->id);
             
             if (!$transaction) {
                 return response()->json([
                     'status' => 'error',
-                    'message' => 'Transaction not found'
+                    'message' => 'Transaction not found or unauthorized access'
                 ], 404);
-            }
-            
-            // Verify the account belongs to the user
-            $account = Account::find($transaction->account_id);
-            if (!$account || $account->user_id !== $user->id) {
-                return response()->json([
-                    'status' => 'error',
-                    'message' => 'Unauthorized access to this transaction'
-                ], 403);
             }
             
             // Delete the transaction using the service
@@ -454,22 +431,22 @@ class TransactionApiController extends Controller
                 // If no account ID is provided, use all user accounts
                 $accountIds = Account::where('user_id', $user->id)->pluck('id')->toArray();
                 
-                // Get statistics for all user accounts
+                // Get statistics for all user accounts with user ID parameter
                 $stats = [];
                 foreach ($accountIds as $accId) {
-                    $stats[$accId] = $this->transactionService->getStatistics($startDate, $endDate, $accId);
+                    $stats[$accId] = $this->transactionService->getStatistics($startDate, $endDate, $accId, $user->id);
                 }
                   return response()->json([
                     'status' => 'success',
                     'data' => [
                         'accounts' => $stats,
-                        'overall' => $this->transactionService->getStatistics($startDate, $endDate)
+                        'overall' => $this->transactionService->getStatistics($startDate, $endDate, null, $user->id)
                     ]
                 ]);
             }
             
-            // Get statistics for the specified account
-            $stats = $this->transactionService->getStatistics($startDate, $endDate, $accountId);
+            // Get statistics for the specified account with user ID parameter
+            $stats = $this->transactionService->getStatistics($startDate, $endDate, $accountId, $user->id);
             
             return response()->json([
                 'status' => 'success',

@@ -19,20 +19,43 @@ class TransactionService
 {
     protected $maxRetries = 3;
     protected $retryDelay = 1; // seconds
-
+    
     /**
      * Get a paginated list of transactions with optional filtering.
      *
      * @param array $filters
      * @param int $perPage
+     * @param int|null $userId - Filter transactions by user's accounts
      * @return LengthAwarePaginator
      */
-    public function getTransactions(array $filters = [], int $perPage = 15): LengthAwarePaginator
+    public function getTransactions(array $filters = [], int $perPage = 15, ?int $userId = null): LengthAwarePaginator
     {
         $query = Transaction::query();
         
-        // Apply account filter
+        // CRITICAL: Filter by user's accounts first to ensure data isolation
+        if ($userId) {
+            $userAccountIds = Account::where('user_id', $userId)->pluck('id')->toArray();
+            if (empty($userAccountIds)) {
+                // User has no accounts, return empty result
+                return new \Illuminate\Pagination\LengthAwarePaginator(
+                    collect([]), 0, $perPage, 1
+                );
+            }
+            $query->whereIn('account_id', $userAccountIds);
+        }
+        
+        // Apply account filter (must be within user's accounts if userId is provided)
         if (isset($filters['account_id']) && $filters['account_id']) {
+            // If user filtering is active, verify the account belongs to the user
+            if ($userId) {
+                $userAccountIds = $userAccountIds ?? Account::where('user_id', $userId)->pluck('id')->toArray();
+                if (!in_array($filters['account_id'], $userAccountIds)) {
+                    // Account doesn't belong to user, return empty result
+                    return new \Illuminate\Pagination\LengthAwarePaginator(
+                        collect([]), 0, $perPage, 1
+                    );
+                }
+            }
             $query->where('account_id', $filters['account_id']);
         }
         
@@ -82,18 +105,29 @@ class TransactionService
         $query->orderBy('transaction_date', 'desc');
         
         return $query->paginate($perPage);
-    }
-      /**
-     * Find a transaction by UUID.
+    }    /**
+     * Find a transaction by UUID with user authorization.
      *
      * @param string $uuid
+     * @param int|null $userId - Filter by user's accounts for security
      * @return Transaction|null
      */
-    public function findByUuid(string $uuid): ?Transaction
+    public function findByUuid(string $uuid, ?int $userId = null): ?Transaction
     {
-        return Transaction::with(['account', 'category'])
-            ->where('uuid', $uuid)
-            ->first();
+        $query = Transaction::with(['account', 'category'])
+            ->where('uuid', $uuid);
+        
+        // CRITICAL: Filter by user's accounts to ensure data isolation
+        if ($userId) {
+            $userAccountIds = Account::where('user_id', $userId)->pluck('id')->toArray();
+            if (empty($userAccountIds)) {
+                // User has no accounts, return null
+                return null;
+            }
+            $query->whereIn('account_id', $userAccountIds);
+        }
+        
+        return $query->first();
     }
 
     /**
@@ -211,27 +245,59 @@ class TransactionService
                 return $transaction->delete();
             });
         });
-    }
-
-    /**
+    }    /**
      * Get transaction statistics for a given period
      *
      * @param string $startDate
      * @param string $endDate
      * @param int|null $accountId
+     * @param int|null $userId - Filter by user's accounts for security
      * @return array
      */
-    public function getStatistics($startDate, $endDate, $accountId = null)
+    public function getStatistics($startDate, $endDate, $accountId = null, ?int $userId = null)
     {
         $query = Transaction::query()
             ->whereBetween('transaction_date', [$startDate, $endDate]);
 
         if ($accountId) {
             $query->where('account_id', $accountId);
+            
+            // CRITICAL: If userId is provided, verify the account belongs to the user
+            if ($userId) {
+                $userAccountIds = Account::where('user_id', $userId)->pluck('id')->toArray();
+                if (!in_array($accountId, $userAccountIds)) {
+                    // Account doesn't belong to user, return empty stats
+                    return [
+                        'total_income' => 0,
+                        'total_expense' => 0,
+                        'net' => 0,
+                        'income_count' => 0,
+                        'expense_count' => 0,
+                        'monthly_data' => []
+                    ];
+                }
+            }
         } else {
-            // If no specific account is selected, get all accounts for the current user
-            $userAccounts = Auth::user()->accounts()->pluck('id')->toArray();
-            $query->whereIn('account_id', $userAccounts);
+            // If no specific account is selected, get all accounts for the specified user
+            if ($userId) {
+                $userAccounts = Account::where('user_id', $userId)->pluck('id')->toArray();
+                if (empty($userAccounts)) {
+                    // User has no accounts, return empty stats
+                    return [
+                        'total_income' => 0,
+                        'total_expense' => 0,
+                        'net' => 0,
+                        'income_count' => 0,
+                        'expense_count' => 0,
+                        'monthly_data' => []
+                    ];
+                }
+                $query->whereIn('account_id', $userAccounts);
+            } else {
+                // Fallback to Auth::user() for backward compatibility
+                $userAccounts = Auth::user()->accounts()->pluck('id')->toArray();
+                $query->whereIn('account_id', $userAccounts);
+            }
         }
 
         // Get income and expense totals
@@ -346,16 +412,16 @@ class TransactionService
 
         return $query->limit($limit)->get();
     }
-    
-    /**
+      /**
      * Get transactions by category
      *
      * @param string $categoryId UUID or ID of the category
      * @param array $filters
      * @param int $perPage
+     * @param int|null $userId - Filter by user's accounts for security
      * @return LengthAwarePaginator
      */
-    public function getTransactionsByCategory($categoryId, array $filters = [], int $perPage = 15): LengthAwarePaginator
+    public function getTransactionsByCategory($categoryId, array $filters = [], int $perPage = 15, ?int $userId = null): LengthAwarePaginator
     {
         // Find the category by UUID or ID
         $category = Category::where('uuid', $categoryId)
@@ -368,13 +434,27 @@ class TransactionService
         
         $query = Transaction::query()
             ->where('category_id', $category->id);
+        
+        // CRITICAL: Filter by user's accounts first to ensure data isolation
+        if ($userId) {
+            $userAccounts = Account::where('user_id', $userId)->pluck('id')->toArray();
+            if (empty($userAccounts)) {
+                // User has no accounts, return empty results
+                return new LengthAwarePaginator([], 0, $perPage);
+            }
+            $query->whereIn('account_id', $userAccounts);
+        } else {
+            // Fallback to Auth::user() for backward compatibility
+            $userAccounts = Auth::user()->accounts()->pluck('id')->toArray();
+            $query->whereIn('account_id', $userAccounts);
+        }
             
         // Apply date range filters
         if (isset($filters['start_date']) && isset($filters['end_date'])) {
             $query->whereBetween('transaction_date', [$filters['start_date'], $filters['end_date']]);
         }
         
-        // Apply account filter
+        // Apply account filter (must be within user's accounts)
         if (isset($filters['account_id']) && $filters['account_id']) {
             $query->where('account_id', $filters['account_id']);
         }
@@ -386,18 +466,17 @@ class TransactionService
         $query->orderBy('transaction_date', 'desc');
         
         return $query->paginate($perPage);
-    }
-
-    /**
+    }    /**
      * Get category transaction statistics for a given period
      *
      * @param string $categoryId UUID or ID of the category
      * @param string $startDate
      * @param string $endDate
      * @param int|null $accountId
+     * @param int|null $userId - Filter by user's accounts for security
      * @return array
      */
-    public function getCategoryStatistics($categoryId, $startDate, $endDate, $accountId = null)
+    public function getCategoryStatistics($categoryId, $startDate, $endDate, $accountId = null, ?int $userId = null)
     {
         // Find the category by UUID or ID
         $category = Category::where('uuid', $categoryId)
@@ -418,10 +497,57 @@ class TransactionService
 
         if ($accountId) {
             $query->where('account_id', $accountId);
+            
+            // CRITICAL: If userId is provided, verify the account belongs to the user
+            if ($userId) {
+                $userAccountIds = Account::where('user_id', $userId)->pluck('id')->toArray();
+                if (!in_array($accountId, $userAccountIds)) {
+                    // Account doesn't belong to user, return empty stats
+                    return [
+                        'category' => [
+                            'id' => $category->uuid,
+                            'name' => $category->name,
+                            'icon' => $category->icon,
+                            'colour_code' => $category->colour_code,
+                            'type' => $category->type
+                        ],
+                        'total_income' => 0,
+                        'total_expense' => 0,
+                        'income_count' => 0,
+                        'expense_count' => 0,
+                        'net' => 0,
+                        'monthly_data' => []
+                    ];
+                }
+            }
         } else {
-            // If no specific account is selected, get all accounts for the current user
-            $userAccounts = Auth::user()->accounts()->pluck('id')->toArray();
-            $query->whereIn('account_id', $userAccounts);
+            // If no specific account is selected, get all accounts for the specified user
+            if ($userId) {
+                $userAccounts = Account::where('user_id', $userId)->pluck('id')->toArray();
+                if (empty($userAccounts)) {
+                    // User has no accounts, return empty stats
+                    return [
+                        'category' => [
+                            'id' => $category->uuid,
+                            'name' => $category->name,
+                            'icon' => $category->icon,
+                            'colour_code' => $category->colour_code,
+                            'type' => $category->type
+                        ],
+                        'total_income' => 0,
+                        'total_expense' => 0,
+                        'income_count' => 0,
+                        'expense_count' => 0,
+                        'net' => 0,
+                        'monthly_data' => []
+                    ];
+                }
+                $query->whereIn('account_id', $userAccounts);
+            } else {
+                // Fallback to Auth::user() for backward compatibility
+                $userAccounts = Auth::user()->accounts()->pluck('id')->toArray();
+                $query->whereIn('account_id', $userAccounts);
+            }
         }
 
         // Get income and expense totals for this category
@@ -446,7 +572,12 @@ class TransactionService
         if ($accountId) {
             $monthlyData->where('account_id', $accountId);
         } else {
-            $monthlyData->whereIn('account_id', Auth::user()->accounts()->pluck('id')->toArray());
+            if ($userId) {
+                $userAccounts = Account::where('user_id', $userId)->pluck('id')->toArray();
+                $monthlyData->whereIn('account_id', $userAccounts);
+            } else {
+                $monthlyData->whereIn('account_id', Auth::user()->accounts()->pluck('id')->toArray());
+            }
         }
 
         $monthlyData = $monthlyData->groupBy('month', 'type')
