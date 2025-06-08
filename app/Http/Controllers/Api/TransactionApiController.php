@@ -5,6 +5,7 @@ namespace App\Http\Controllers\API;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\TransactionResource;
 use App\Models\Account;
+use App\Models\Category;
 use App\Models\Transaction;
 use App\Models\Currency;
 use App\Services\TransactionService;
@@ -86,12 +87,55 @@ class TransactionApiController extends Controller
                 ], 401);
             }
             
-            // Validate input            
+            // Validate input with custom validation for user accounts and categories            
             $validator = Validator::make($request->all(), [
-                'account_id' => 'required|string',
+                'account_id' => [
+                    'required',
+                    'string',
+                    function ($attribute, $value, $fail) use ($user) {
+                        // Find account by either ID or UUID
+                        $account = null;
+                        if (is_numeric($value)) {
+                            $account = Account::find($value);
+                        } else {
+                            $account = Account::where('uuid', $value)->first();
+                        }
+                        
+                        if (!$account) {
+                            $fail('The selected account does not exist.');
+                            return;
+                        }
+                        
+                        if ($account->user_id !== $user->id) {
+                            $fail('The selected account does not belong to you.');
+                        }
+                    }
+                ],
                 'amount' => 'required|numeric|min:0.01',
                 'type' => 'required|in:income,expense,transfer',
-                'category_id' => 'nullable|string',  // Allow category by ID or UUID
+                'category_id' => [
+                    'nullable',
+                    'string',
+                    function ($attribute, $value, $fail) use ($request) {
+                        if ($value) {
+                            // Find category by either ID or UUID
+                            $category = Category::where('uuid', $value)
+                                ->orWhere('id', $value)
+                                ->first();
+                            
+                            if (!$category) {
+                                $fail('The selected category does not exist.');
+                                return;
+                            }
+                            
+                            // Validate category type matches transaction type
+                            $transactionType = $request->input('type');
+                            if ($transactionType && $category->type !== $transactionType) {
+                                $fail('The selected category type does not match the transaction type.');
+                            }
+                        }
+                    }
+                ],
                 'description' => 'nullable|string|max:255',
                 'transaction_date' => 'required|date',
                 'is_reconciled' => 'boolean',
@@ -106,27 +150,12 @@ class TransactionApiController extends Controller
                 ], 422);
             }
             
-            // Find account by either ID or UUID
+            // Find account by either ID or UUID (we know it exists and belongs to user from validation)
             $account = null;
             if (is_numeric($request->account_id)) {
                 $account = Account::find($request->account_id);
             } else {
-                // Try to find by UUID
                 $account = Account::where('uuid', $request->account_id)->first();
-            }
-            
-            if (!$account) {
-                return response()->json([
-                    'status' => 'error',
-                    'message' => 'Account not found'
-                ], 404);
-            }
-            
-            if ($account->user_id != $user->id) {
-                return response()->json([
-                    'status' => 'error',
-                    'message' => 'Unauthorized access to this account'
-                ], 403);
             }
             
             $transactionData = [                
@@ -240,12 +269,56 @@ class TransactionApiController extends Controller
                     'message' => 'Unauthorized access to this transaction'
                 ], 403);
             }
-              // Validate input            
+              // Validate input with custom validation for user accounts and categories
             $validator = Validator::make($request->all(), [
-                'account_id' => 'sometimes|required|string', // Allow UUIDs
+                'account_id' => [
+                    'sometimes',
+                    'required',
+                    'string',
+                    function ($attribute, $value, $fail) use ($user) {
+                        // Find account by either ID or UUID
+                        $account = null;
+                        if (is_numeric($value)) {
+                            $account = Account::find($value);
+                        } else {
+                            $account = Account::where('uuid', $value)->first();
+                        }
+                        
+                        if (!$account) {
+                            $fail('The selected account does not exist.');
+                            return;
+                        }
+                        
+                        if ($account->user_id !== $user->id) {
+                            $fail('The selected account does not belong to you.');
+                        }
+                    }
+                ],
                 'amount' => 'sometimes|required|numeric|min:0.01',
                 'type' => 'sometimes|required|in:income,expense,transfer',
-                'category_id' => 'nullable|string', // Allow category by ID or UUID - service will handle lookup
+                'category_id' => [
+                    'nullable',
+                    'string',
+                    function ($attribute, $value, $fail) use ($request) {
+                        if ($value) {
+                            // Find category by either ID or UUID
+                            $category = Category::where('uuid', $value)
+                                ->orWhere('id', $value)
+                                ->first();
+                            
+                            if (!$category) {
+                                $fail('The selected category does not exist.');
+                                return;
+                            }
+                            
+                            // Validate category type matches transaction type
+                            $transactionType = $request->input('type');
+                            if ($transactionType && $category->type !== $transactionType) {
+                                $fail('The selected category type does not match the transaction type.');
+                            }
+                        }
+                    }
+                ],
                 'description' => 'nullable|string|max:255',
                 'transaction_date' => 'sometimes|required|date',
                 'is_reconciled' => 'boolean',
@@ -259,90 +332,20 @@ class TransactionApiController extends Controller
                     'errors' => $validator->errors()
                 ], 422);
             }
-              // If account_id is being changed, verify the new account belongs to the user
+            // Prepare update data (make sure to only include fillable attributes that have changed)
+            $updateData = [];            
             if ($request->has('account_id')) {
-                $newAccount = null;
-                
-                // Find account by either ID or UUID
+                // Find account by either ID or UUID (already validated)
                 if (is_numeric($request->account_id)) {
                     $newAccount = Account::find($request->account_id);
                 } else {
-                    // Try to find by UUID
                     $newAccount = Account::where('uuid', $request->account_id)->first();
                 }
-                
-                if (!$newAccount) {
-                    return response()->json([
-                        'status' => 'error',
-                        'message' => 'Target account not found'
-                    ], 404);
-                }
-                
-                if ($newAccount->user_id !== $user->id) {
-                    return response()->json([
-                        'status' => 'error',
-                        'message' => 'Unauthorized access to the target account'
-                    ], 403);
-                }
-                
-                // Replace the UUID with the actual ID
-                $request->merge(['account_id' => $newAccount->id]);
+                $updateData['account_id'] = $newAccount->id; // Use actual ID
             }
-
-            // Determine the account to check for balance
-            $accountToCheckBalance = $request->has('account_id') ? $newAccount : $account;
-            $newAmount = $request->input('amount', $transaction->amount);
-            $newType = $request->input('type', $transaction->type);
-
-            // Negative balance check for expense or transfer out of an account
-            if ($newType === 'expense' || ($newType === 'transfer' && $request->input('account_id', $transaction->account_id) == $accountToCheckBalance->id)) {
-                // Calculate the actual effect of the original transaction on the balance
-                $actualOldEffect = 0;
-                if ($transaction->type === 'income') {
-                    $actualOldEffect = $transaction->amount;
-                } elseif ($transaction->type === 'expense' || $transaction->type === 'transfer') {
-                    $actualOldEffect = -$transaction->amount;
-                }
-
-                // Calculate the actual effect of the new/updated transaction on the balance
-                $actualNewEffect = 0;
-                if ($newType === 'income') {
-                    $actualNewEffect = $newAmount;
-                } elseif ($newType === 'expense' || $newType === 'transfer') {
-                    $actualNewEffect = -$newAmount;
-                }
-                
-                // This is the net change that will be applied to the current balance
-                $balanceDelta = $actualNewEffect - $actualOldEffect;
-
-                // If changing accounts, the logic is simpler: check the new account's balance against the new transaction's effect.
-                if ($request->has('account_id') && $transaction->account_id != $accountToCheckBalance->id) {
-                    // Transaction is moving to a new account ($accountToCheckBalance is $newAccount)
-                    // The effect on the new account is purely $actualNewEffect.
-                    if (($accountToCheckBalance->getCurrentBalanceAttribute() + $actualNewEffect) < 0 && $actualNewEffect < 0) { // only block if new effect is negative and causes negative balance
-                        return response()->json([
-                            'status' => 'error',
-                            'message' => 'Transaction would cause negative balance in the new account. New account current balance: ' . $accountToCheckBalance->getCurrentBalanceAttribute() . '. Effect of new transaction: ' . $actualNewEffect
-                        ], 422);
-                    }
-                } else {
-                    // Transaction is in the same account, or only amount/type is changing
-                    // We block if the update makes the balance negative AND the delta itself is negative (i.e., makes things worse or more negative)
-                    if (($accountToCheckBalance->getCurrentBalanceAttribute() + $balanceDelta) < 0 && $balanceDelta < 0) {
-                         return response()->json([
-                            'status' => 'error',
-                            'message' => 'Transaction update would cause negative balance. Account current balance: ' . $accountToCheckBalance->getCurrentBalanceAttribute() . '. Change: ' . $balanceDelta
-                        ], 422);
-                    }
-                }
-            }
-            
-              // Prepare update data (make sure to only include fillable attributes that have changed)
-            $updateData = [];            
-            if ($request->has('account_id')) $updateData['account_id'] = $request->account_id; // Already converted to ID if UUID was passed
             if ($request->has('amount')) $updateData['amount'] = $request->amount;
             if ($request->has('type')) $updateData['type'] = $request->type;
-            if ($request->has('category_id')) $updateData['category_id'] = $request->category_id; // Corrected: use category_id
+            if ($request->has('category_id')) $updateData['category_id'] = $request->category_id; // TransactionService will handle UUID to ID conversion
             if ($request->has('description')) $updateData['description'] = $request->description;
             if ($request->has('transaction_date')) $updateData['transaction_date'] = $request->transaction_date;
             if ($request->has('is_reconciled')) $updateData['is_reconciled'] = $request->is_reconciled;

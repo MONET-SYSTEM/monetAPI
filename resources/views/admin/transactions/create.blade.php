@@ -129,21 +129,6 @@
                         </div>
                     </div>
                     
-                    <!-- Attachments -->
-                    <div class="row mt-3">
-                        <div class="col-md-12">
-                            <div class="form-group">
-                                <label for="attachments">Attachments</label>
-                                <div class="custom-file">
-                                    <input type="file" class="custom-file-input" id="attachments" name="attachments[]" multiple>
-                                    <label class="custom-file-label" for="attachments">Choose files</label>
-                                </div>
-                                <small class="form-text text-muted">
-                                    You can upload receipts, invoices, or other documents related to this transaction
-                                </small>
-                            </div>
-                        </div>
-                    </div>
                 </div>
                 <div class="card-footer">
                     <button type="submit" class="btn btn-primary">Save Transaction</button>

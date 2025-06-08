@@ -143,19 +143,34 @@ class AccountController extends Controller
 
         $account = $this->accountService->getAccountByUserUuid($user, $id);
 
-        // delete
-        $result = $this->accountService->delete($account);
-        if (!$result) {
-            abort(500, __('app.data_delete_error', [
-                'data' => __('app.account')
-            ]));
-        }
+        try {
+            // Check if force delete is requested
+            $forceDelete = $request->has('force') && $request->input('force') === true;
+            
+            // delete
+            $result = $this->accountService->delete($account, $forceDelete);
+            
+            if (!$result) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => __('app.data_delete_error', ['data' => __('app.account')])
+                ], 500);
+            }
 
-        // return
-        return response([
-            'message' => __('app.data_delete_success', [
-                'data' => __('app.account')
-            ])
-        ]);
+            // return success response
+            return response()->json([
+                'status' => 'success',
+                'message' => __('app.data_delete_success', ['data' => __('app.account')])
+            ]);
+            
+        } catch (\Exception $e) {
+            // Return error response with transaction dependency details
+            return response()->json([
+                'status' => 'error',
+                'message' => $e->getMessage(),
+                'account_uuid' => $account->uuid,
+                'suggestion' => 'Add "force": true to the request body to delete the account and all its transactions.'
+            ], 409); // 409 Conflict - indicates a conflict with the current state
+        }
     }
 }

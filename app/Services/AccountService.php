@@ -106,8 +106,24 @@ class AccountService
         return $account;
     }
 
-    public function delete(Account $account): bool
+    public function delete(Account $account, bool $forceDelete = false): bool
     {
+        // Check if account has any transactions
+        $transactionCount = $account->transactions()->count();
+        
+        if ($transactionCount > 0 && !$forceDelete) {
+            throw new \Exception(
+                "Cannot delete account '{$account->name}' because it has {$transactionCount} associated transaction(s). " .
+                "Please delete all transactions first or use force delete if you want to remove all data."
+            );
+        }
+        
+        // If forceDelete is true or no transactions exist, proceed with deletion
+        if ($transactionCount > 0 && $forceDelete) {
+            // Soft delete all associated transactions first to maintain data integrity
+            $account->transactions()->delete();
+        }
+        
         $account->delete();
         return true;
     }

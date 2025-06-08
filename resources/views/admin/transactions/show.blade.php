@@ -183,38 +183,7 @@
                                 </div>
                             </div>
                         </div>
-                    </div>
-                </div>
-                @endif
-
-                <!-- Attachments -->
-                @if($transaction->attachments->count() > 0)
-                <div class="row mt-4">
-                    <div class="col-md-12">
-                        <h5>Attachments</h5>
-                        <div class="row">
-                            @foreach($transaction->attachments as $attachment)
-                            <div class="col-md-3 mb-3">
-                                <div class="card">
-                                    @if(in_array(pathinfo($attachment->file_path, PATHINFO_EXTENSION), ['jpg', 'jpeg', 'png', 'gif']))
-                                        <img src="{{ asset('storage/' . $attachment->file_path) }}" class="card-img-top" alt="Attachment">
-                                    @else
-                                        <div class="card-img-top bg-light text-center py-5">
-                                            <i class="fas fa-file fa-3x text-secondary"></i>
-                                        </div>
-                                    @endif
-                                    <div class="card-body p-2">
-                                        <p class="card-text text-truncate">{{ $attachment->original_name }}</p>
-                                        <a href="{{ asset('storage/' . $attachment->file_path) }}" class="btn btn-sm btn-info btn-block" target="_blank">
-                                            <i class="fas fa-download"></i> Download
-                                        </a>
-                                    </div>
-                                </div>
-                            </div>
-                            @endforeach
-                        </div>
-                    </div>
-                </div>
+                    </div>                </div>
                 @endif
             </div>
             <div class="card-footer text-center">

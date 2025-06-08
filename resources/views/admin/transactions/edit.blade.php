@@ -127,60 +127,7 @@
                                     Check this if the transaction has been verified with your bank statement
                                 </small>
                             </div>
-                        </div>
-                    </div>
-                    
-                    <!-- Existing Attachments -->
-                    @if($transaction->attachments->count() > 0)
-                    <div class="row mt-3">
-                        <div class="col-md-12">
-                            <h5>Existing Attachments</h5>
-                            <div class="row">
-                                @foreach($transaction->attachments as $attachment)
-                                <div class="col-md-3 mb-3">
-                                    <div class="card">
-                                        @if(in_array(pathinfo($attachment->file_path, PATHINFO_EXTENSION), ['jpg', 'jpeg', 'png', 'gif']))
-                                            <img src="{{ asset('storage/' . $attachment->file_path) }}" class="card-img-top" alt="Attachment">
-                                        @else
-                                            <div class="card-img-top bg-light text-center py-5">
-                                                <i class="fas fa-file fa-3x text-secondary"></i>
-                                            </div>
-                                        @endif
-                                        <div class="card-body p-2">
-                                            <p class="card-text text-truncate">{{ $attachment->original_name }}</p>
-                                            <div class="btn-group btn-group-sm w-100">
-                                                <a href="{{ asset('storage/' . $attachment->file_path) }}" class="btn btn-info" target="_blank">
-                                                    <i class="fas fa-eye"></i>
-                                                </a>
-                                                <button type="button" class="btn btn-danger" 
-                                                        onclick="confirmDeleteAttachment('{{ route('admin.transaction.attachments.destroy', $attachment) }}')">
-                                                    <i class="fas fa-trash"></i>
-                                                </button>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                                @endforeach
-                            </div>
-                        </div>
-                    </div>
-                    @endif
-                    
-                    <!-- New Attachments -->
-                    <div class="row mt-3">
-                        <div class="col-md-12">
-                            <div class="form-group">
-                                <label for="attachments">Add New Attachments</label>
-                                <div class="custom-file">
-                                    <input type="file" class="custom-file-input" id="attachments" name="attachments[]" multiple>
-                                    <label class="custom-file-label" for="attachments">Choose files</label>
-                                </div>
-                                <small class="form-text text-muted">
-                                    You can upload receipts, invoices, or other documents related to this transaction
-                                </small>
-                            </div>
-                        </div>
-                    </div>
+                        </div>                    </div>
                 </div>
                 <div class="card-footer">
                     <button type="submit" class="btn btn-primary">Update Transaction</button>
@@ -191,30 +138,6 @@
     </div>
 </div>
 
-<!-- Delete Attachment Confirmation Modal -->
-<div class="modal fade" id="deleteAttachmentModal" tabindex="-1" role="dialog" aria-hidden="true">
-    <div class="modal-dialog" role="document">
-        <div class="modal-content">
-            <div class="modal-header bg-danger">
-                <h5 class="modal-title">Delete Attachment</h5>
-                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
-                    <span aria-hidden="true">&times;</span>
-                </button>
-            </div>
-            <div class="modal-body">
-                Are you sure you want to delete this attachment? This action cannot be undone.
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
-                <form id="deleteAttachmentForm" method="POST" action="">
-                    @csrf
-                    @method('DELETE')
-                    <button type="submit" class="btn btn-danger">Delete</button>
-                </form>
-            </div>
-        </div>
-    </div>
-</div>
 @stop
 
 @section('css')
@@ -223,11 +146,6 @@
 
 @section('js')
     <script>
-        function confirmDeleteAttachment(deleteUrl) {
-            document.getElementById('deleteAttachmentForm').action = deleteUrl;
-            $('#deleteAttachmentModal').modal('show');
-        }
-        
         $(function () {
             // Update currency symbol based on selected account
             $('#account_id').change(function() {
@@ -244,12 +162,6 @@
                 } else {
                     $('#currency-symbol').text('$');
                 }
-            });
-            
-            // Show selected file names in file input
-            $(document).on('change', '.custom-file-input', function() {
-                var fileNames = Array.from(this.files).map(f => f.name).join(', ');
-                $(this).next('.custom-file-label').html(fileNames || 'Choose files');
             });
         });
     </script>

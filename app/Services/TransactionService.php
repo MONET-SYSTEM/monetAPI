@@ -83,8 +83,7 @@ class TransactionService
         
         return $query->paginate($perPage);
     }
-    
-    /**
+      /**
      * Find a transaction by UUID.
      *
      * @param string $uuid
@@ -92,7 +91,7 @@ class TransactionService
      */
     public function findByUuid(string $uuid): ?Transaction
     {
-        return Transaction::with(['account', 'category', 'attachments'])
+        return Transaction::with(['account', 'category'])
             ->where('uuid', $uuid)
             ->first();
     }
@@ -188,13 +187,13 @@ class TransactionService
                         // If category wasn't found but was provided, remove it to avoid errors
                         unset($data['category_id']);
                     }
-                }
-
-                // Update transaction
+                }                // Update transaction
                 $transaction->update($data);
-                $transaction->refresh();
                 
-                return $transaction;
+                // Instead of refresh, get a fresh instance from database
+                $freshTransaction = Transaction::find($transaction->id);
+                
+                return $freshTransaction;
             });
         });
     }

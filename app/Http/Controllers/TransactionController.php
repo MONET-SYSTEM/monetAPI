@@ -63,9 +63,7 @@ class TransactionController extends Controller
         $categories = Category::all();
         
         return view('admin.transactions.index', compact('transactions', 'accounts', 'categories'));
-    }
-
-    /**
+    }    /**
      * Show the form for creating a new transaction.
      */
     public function create()
@@ -73,26 +71,51 @@ class TransactionController extends Controller
         // Get the authenticated user
         $user = Auth::user();
         
-        // Get user accounts
+        // Get user accounts only
         $accounts = Account::where('user_id', $user->id)->get();
         
         // Get categories
         $categories = Category::all();
         
         return view('admin.transactions.create', compact('accounts', 'categories'));
-    }
-
-    /**
+    }/**
      * Store a newly created transaction in storage.
      */
     public function store(Request $request)
     {
-        // Validate input
+        // Get the authenticated user
+        $user = Auth::user();
+        
+        // Validate input with custom validation for user accounts and categories
         $validator = Validator::make($request->all(), [
-            'account_id' => 'required|exists:accounts,id',
+            'account_id' => [
+                'required',
+                'exists:accounts,id',
+                function ($attribute, $value, $fail) use ($user) {
+                    $account = Account::find($value);
+                    if ($account && $account->user_id !== $user->id) {
+                        $fail('The selected account does not belong to you.');
+                    }
+                }
+            ],
             'amount' => 'required|numeric|min:0.01',
             'type' => 'required|in:income,expense,transfer',
-            'category_id' => 'nullable|exists:categories,id',
+            'category_id' => [
+                'nullable',
+                'exists:categories,id',
+                function ($attribute, $value, $fail) use ($request) {
+                    if ($value) {
+                        $category = Category::find($value);
+                        if ($category) {
+                            // Validate category type matches transaction type
+                            $transactionType = $request->input('type');
+                            if ($transactionType && $category->type !== $transactionType) {
+                                $fail('The selected category type does not match the transaction type.');
+                            }
+                        }
+                    }
+                }
+            ],
             'description' => 'nullable|string|max:255',
             'transaction_date' => 'required|date',
             'is_reconciled' => 'boolean',
@@ -128,16 +151,13 @@ class TransactionController extends Controller
         $account = Account::find($transaction->account_id);
         
         if ($account->user_id !== $user->id) {
-            abort(403, 'Unauthorized action.');
-        }
+            abort(403, 'Unauthorized action.');        }
         
         // Load relationships
-        $transaction->load(['account', 'category', 'attachments']);
+        $transaction->load(['account', 'category']);
         
         return view('admin.transactions.show', compact('transaction'));
-    }
-
-    /**
+    }    /**
      * Show the form for editing the specified transaction.
      */
     public function edit(Transaction $transaction)
@@ -150,16 +170,14 @@ class TransactionController extends Controller
             abort(403, 'Unauthorized action.');
         }
         
-        // Get user accounts
+        // Get user accounts only
         $accounts = Account::where('user_id', $user->id)->get();
         
         // Get categories
         $categories = Category::all();
         
         return view('admin.transactions.edit', compact('transaction', 'accounts', 'categories'));
-    }
-
-    /**
+    }/**
      * Update the specified transaction in storage.
      */
     public function update(Request $request, Transaction $transaction)
@@ -172,12 +190,36 @@ class TransactionController extends Controller
             abort(403, 'Unauthorized action.');
         }
         
-        // Validate input
+        // Validate input with custom validation for user accounts and categories
         $validator = Validator::make($request->all(), [
-            'account_id' => 'required|exists:accounts,id',
+            'account_id' => [
+                'required',
+                'exists:accounts,id',
+                function ($attribute, $value, $fail) use ($user) {
+                    $account = Account::find($value);
+                    if ($account && $account->user_id !== $user->id) {
+                        $fail('The selected account does not belong to you.');
+                    }
+                }
+            ],
             'amount' => 'required|numeric|min:0.01',
             'type' => 'required|in:income,expense,transfer',
-            'category_id' => 'nullable|exists:categories,id',
+            'category_id' => [
+                'nullable',
+                'exists:categories,id',
+                function ($attribute, $value, $fail) use ($request) {
+                    if ($value) {
+                        $category = Category::find($value);
+                        if ($category) {
+                            // Validate category type matches transaction type
+                            $transactionType = $request->input('type');
+                            if ($transactionType && $category->type !== $transactionType) {
+                                $fail('The selected category type does not match the transaction type.');
+                            }
+                        }
+                    }
+                }
+            ],
             'description' => 'nullable|string|max:255',
             'transaction_date' => 'required|date',
             'is_reconciled' => 'boolean',

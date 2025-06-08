@@ -5,15 +5,19 @@ namespace App\Http\Controllers;
 use App\Models\Account;
 use App\Models\AccountType;
 use App\Models\Currency;
+use App\Services\AccountService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 
 class AccountController extends Controller
 {
+    protected $accountService;
+
     // Only allow logged-in users to access these actions.
-    public function __construct()
+    public function __construct(AccountService $accountService)
     {
         $this->middleware('auth');
+        $this->accountService = $accountService;
     }
 
     // List all accounts.
@@ -136,14 +140,32 @@ class AccountController extends Controller
 
         // Redirect to the accounts list with a success message.
         return redirect()->route('admin.accounts.index')->with('success', __('app.account_update'));
-    }
-
-    // Delete an account.
-    public function destroy(Account $account)
+    }    // Delete an account.
+    public function destroy(Account $account, Request $request)
     {
-        // Remove the account from the database.
-        $account->forceDelete(); // Permanently deletes the record
-        return redirect()->route('admin.accounts.index')->with('success', __('app.account_delete'));
+        // Check if user owns this account (if you have user-based access control)
+        $user = Auth::user();
+        // Note: Add user ownership check if accounts are user-specific
+        // if ($account->user_id !== $user->id) {
+        //     abort(403, 'Unauthorized action.');
+        // }
+        
+        try {
+            // Check if force delete is requested
+            $forceDelete = $request->has('force') && $request->input('force') === 'true';
+            
+            // Attempt to delete the account using the service
+            $this->accountService->delete($account, $forceDelete);
+            
+            return redirect()->route('admin.accounts.index')
+                ->with('success', __('app.account_delete'));
+                
+        } catch (\Exception $e) {
+            // If deletion failed due to transaction dependencies, provide helpful error message
+            return redirect()->route('admin.accounts.index')
+                ->with('error', $e->getMessage())
+                ->with('account_with_transactions', $account->uuid); // Pass account UUID for potential force delete
+        }
     }
 
     public function trends()
