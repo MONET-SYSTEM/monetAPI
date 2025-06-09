@@ -5,7 +5,9 @@ namespace App\Http\Controllers\API;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\BudgetResource;
 use App\Models\Budget;
+use App\Models\Category;
 use App\Services\BudgetService;
+use App\Services\BudgetNotificationService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Validator;
@@ -13,10 +15,12 @@ use Illuminate\Support\Facades\Validator;
 class BudgetApiController extends Controller
 {
     protected $budgetService;
+    protected $notificationService;
 
-    public function __construct(BudgetService $budgetService)
+    public function __construct(BudgetService $budgetService, BudgetNotificationService $notificationService)
     {
         $this->budgetService = $budgetService;
+        $this->notificationService = $notificationService;
     }
 
     /**
@@ -49,12 +53,6 @@ class BudgetApiController extends Controller
             return response()->json([
                 'status' => 'success',
                 'data' => BudgetResource::collection($budgets),
-                'pagination' => [
-                    'current_page' => $budgets->currentPage(),
-                    'last_page' => $budgets->lastPage(),
-                    'per_page' => $budgets->perPage(),
-                    'total' => $budgets->total(),
-                ]
             ]);
         } catch (\Exception $e) {
             return response()->json([
@@ -63,19 +61,32 @@ class BudgetApiController extends Controller
                 'error' => $e->getMessage()
             ], 500);
         }
-    }
-
-    /**
+    }    /**
      * Store a newly created budget.
      */
     public function store(Request $request)
     {
-        try {
+        try {            
             $validator = Validator::make($request->all(), [
                 'name' => 'required|string|max:255',
                 'description' => 'nullable|string',
                 'amount' => 'required|numeric|min:0.01',
-                'category_id' => 'nullable|exists:categories,id',
+                'category_id' => [
+                    'nullable',
+                    'string',
+                    function ($attribute, $value, $fail) {
+                        if ($value) {
+                            // Check if category exists by UUID or ID
+                            $category = Category::where('uuid', $value)
+                                ->orWhere('id', $value)
+                                ->first();
+                            
+                            if (!$category) {
+                                $fail('The selected category does not exist.');
+                            }
+                        }
+                    }
+                ],
                 'period' => 'required|in:daily,weekly,monthly,quarterly,yearly',
                 'start_date' => 'required|date',
                 'end_date' => 'required|date|after_or_equal:start_date',
@@ -90,12 +101,26 @@ class BudgetApiController extends Controller
                     'message' => 'Validation failed',
                     'errors' => $validator->errors()
                 ], 422);
-            }
-
-            $data = $validator->validated();
+            }            $data = $validator->validated();
             $data['user_id'] = Auth::id();
 
+            // Convert category UUID to ID if provided
+            if (isset($data['category_id'])) {
+                $category = Category::where('uuid', $data['category_id'])
+                    ->orWhere('id', $data['category_id'])
+                    ->first();
+                
+                if ($category) {
+                    $data['category_id'] = $category->id;
+                } else {
+                    unset($data['category_id']); // Remove if not found
+                }
+            }
+
             $budget = $this->budgetService->createBudget($data);
+
+            // Send notification for budget creation
+            $this->notificationService->sendBudgetCreatedNotification($budget);
 
             return response()->json([
                 'status' => 'success',
@@ -132,9 +157,7 @@ class BudgetApiController extends Controller
                 'message' => 'Budget not found'
             ], 404);
         }
-    }
-
-    /**
+    }    /**
      * Update the specified budget.
      */
     public function update(Request $request, string $uuid)
@@ -142,13 +165,26 @@ class BudgetApiController extends Controller
         try {
             $budget = Budget::where('uuid', $uuid)
                 ->where('user_id', Auth::id())
-                ->firstOrFail();
-
-            $validator = Validator::make($request->all(), [
+                ->firstOrFail();            $validator = Validator::make($request->all(), [
                 'name' => 'string|max:255',
                 'description' => 'nullable|string',
                 'amount' => 'numeric|min:0.01',
-                'category_id' => 'nullable|exists:categories,id',
+                'category_id' => [
+                    'nullable',
+                    'string',
+                    function ($attribute, $value, $fail) {
+                        if ($value) {
+                            // Check if category exists by UUID or ID
+                            $category = Category::where('uuid', $value)
+                                ->orWhere('id', $value)
+                                ->first();
+                            
+                            if (!$category) {
+                                $fail('The selected category does not exist.');
+                            }
+                        }
+                    }
+                ],
                 'period' => 'in:daily,weekly,monthly,quarterly,yearly',
                 'start_date' => 'date',
                 'end_date' => 'date|after_or_equal:start_date',
@@ -164,10 +200,25 @@ class BudgetApiController extends Controller
                     'message' => 'Validation failed',
                     'errors' => $validator->errors()
                 ], 422);
+            }            $data = $validator->validated();
+
+            // Convert category UUID to ID if provided
+            if (isset($data['category_id'])) {
+                $category = Category::where('uuid', $data['category_id'])
+                    ->orWhere('id', $data['category_id'])
+                    ->first();
+                
+                if ($category) {
+                    $data['category_id'] = $category->id;
+                } else {
+                    unset($data['category_id']); // Remove if not found
+                }
             }
 
-            $data = $validator->validated();
             $budget = $this->budgetService->updateBudget($budget, $data);
+
+            // Send notification for budget update
+            $this->notificationService->sendBudgetUpdatedNotification($budget);
 
             return response()->json([
                 'status' => 'success',
@@ -193,7 +244,13 @@ class BudgetApiController extends Controller
                 ->where('user_id', Auth::id())
                 ->firstOrFail();
 
+            $budgetName = $budget->name;
+            $userId = $budget->user_id;
+            
             $budget->delete();
+
+            // Send notification for budget deletion
+            $this->notificationService->sendBudgetDeletedNotification($budgetName, $userId);
 
             return response()->json([
                 'status' => 'success',

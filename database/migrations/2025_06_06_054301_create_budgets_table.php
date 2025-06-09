@@ -25,7 +25,7 @@ return new class extends Migration
             $table->date('end_date');
             $table->enum('status', ['active', 'inactive', 'completed', 'exceeded'])->default('active');
             $table->boolean('send_notifications')->default(true);
-            $table->integer('notification_threshold')->default(80); // Percentage
+            $table->integer('notification_threshold')->default(80);
             $table->string('color')->default('#007bff');
             $table->timestamps();
             $table->softDeletes();

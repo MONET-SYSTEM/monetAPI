@@ -35,6 +35,20 @@ class Budget extends Model
     ];
 
     /**
+     * The model's default values for attributes.
+     *
+     * @var array
+     */
+    protected $attributes = [
+        'spent_amount' => 0.00,
+        'period' => 'monthly',
+        'status' => 'active',
+        'send_notifications' => true,
+        'notification_threshold' => 80,
+        'color' => '#007bff',
+    ];
+
+    /**
      * Get the attributes that should be cast.
      *
      * @return array<string, string>
@@ -62,7 +76,15 @@ class Budget extends Model
         
         static::creating(function ($model) {
             if (empty($model->uuid)) {
-                $model->uuid = Str::uuid();
+                $model->uuid = (string) Str::uuid();
+            }
+        });
+
+        static::updated(function ($budget) {
+            // Check if spent_amount was updated and notifications are enabled
+            if ($budget->wasChanged('spent_amount') && $budget->send_notifications) {
+                $service = app(\App\Services\BudgetNotificationService::class);
+                $service->checkBudgetThreshold($budget);
             }
         });
     }
@@ -88,7 +110,9 @@ class Budget extends Model
      */
     public function transactions()
     {
-        return Transaction::where('user_id', $this->user_id)
+        return Transaction::whereHas('account', function ($query) {
+                $query->where('user_id', $this->user_id);
+            })
             ->when($this->category_id, function ($query) {
                 return $query->where('category_id', $this->category_id);
             })

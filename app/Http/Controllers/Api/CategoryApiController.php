@@ -39,18 +39,11 @@ class CategoryApiController extends Controller
                 'search' => $request->search
             ];
             
-            $perPage = $request->input('per_page', 15);
-            $categories = $this->categoryService->getCategories($filters, $perPage);
+            $categories = $this->categoryService->getCategories($filters);
             
             return response()->json([
                 'status' => 'success',
                 'data' => CategoryResource::collection($categories),
-                'meta' => [
-                    'total' => $categories->total(),
-                    'per_page' => $categories->perPage(),
-                    'current_page' => $categories->currentPage(),
-                    'last_page' => $categories->lastPage(),
-                ]
             ]);
         } catch (\Exception $e) {
             return response()->json([

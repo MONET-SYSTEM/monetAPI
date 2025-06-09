@@ -9,6 +9,7 @@ use App\Http\Controllers\Api\AccountController;
 use App\Http\Controllers\Api\TransactionApiController;
 use App\Http\Controllers\Api\CategoryApiController;
 use App\Http\Controllers\Api\BudgetApiController;
+use App\Http\Controllers\Api\NotificationApiController;
 
 // Routes for Authentication using route::post in POSTMAN API
 Route::controller(AuthController::class)->group(function(){
@@ -84,6 +85,15 @@ Route::controller(BudgetApiController::class)->group(function () {
     Route::post('/budget', 'store')->name('api.budget.store')->middleware('auth:sanctum');
     Route::put('/budget/{uuid}', 'update')->name('api.budget.update')->middleware('auth:sanctum');
     Route::delete('/budget/{uuid}', 'destroy')->name('api.budget.destroy')->middleware('auth:sanctum');
+});
+
+// Routes for Notifications
+Route::controller(NotificationApiController::class)->group(function () {
+    Route::get('/notification', 'index')->name('api.notification.index')->middleware('auth:sanctum');
+    Route::get('/notification/unread-count', 'unreadCount')->name('api.notification.unread.count')->middleware('auth:sanctum');
+    Route::put('/notification/{uuid}/read', 'markAsRead')->name('api.notification.read')->middleware('auth:sanctum');
+    Route::put('/notification/mark-all-read', 'markAllAsRead')->name('api.notification.mark.all.read')->middleware('auth:sanctum');
+    Route::delete('/notification/{uuid}', 'destroy')->name('api.notification.destroy')->middleware('auth:sanctum');
 });
 
 
