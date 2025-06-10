@@ -152,22 +152,8 @@ class CategorySeeder extends Seeder
                 'type' => 'transfer',
                 'colour_code' => '#28a745',
                 'is_system' => true,
-            ],            // General Categories
-            [
-                'name' => 'Other Income',
-                'description' => 'Miscellaneous income not categorized elsewhere',
-                'icon' => 'add_circle',
-                'type' => 'income',
-                'colour_code' => '#6c757d',
-                'is_system' => true,            ],
-            [
-                'name' => 'Other Expense',
-                'description' => 'Miscellaneous expenses not categorized elsewhere',
-                'icon' => 'remove_circle',
-                'type' => 'expense',
-                'colour_code' => '#6c757d',
-                'is_system' => true,
-            ],        ];
+            ],            // General Categories  
+         ];
 
         collect($categories)->each(function ($category) {
             Category::firstOrCreate(

@@ -44,15 +44,16 @@ class CategoryApiController extends Controller
             return response()->json([
                 'status' => 'success',
                 'data' => CategoryResource::collection($categories),
-            ]);
-        } catch (\Exception $e) {
+            ]);        } catch (\Exception $e) {
             return response()->json([
                 'status' => 'error',
                 'message' => 'Failed to retrieve categories',
                 'error' => $e->getMessage()
             ], 500);
         }
-    }    /**
+    }
+
+    /**
      * Store a newly created category in storage.
      *
      * @param Request $request
@@ -72,12 +73,21 @@ class CategoryApiController extends Controller
                 'colour_code' => 'nullable|string|max:20',
                 'description' => 'nullable|string|max:255',
             ]);
-            
-            if ($validator->fails()) {
+              if ($validator->fails()) {
                 return response()->json([
                     'status' => 'error',
                     'message' => 'Validation failed',
                     'errors' => $validator->errors()
+                ], 422);
+            }
+            
+            // Additional validation: Check for duplicate category name
+            $existingCategory = Category::where('name', $request->name)->first();
+            if ($existingCategory) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Validation failed',
+                    'errors' => ['name' => ['A category with this name already exists.']]
                 ], 422);
             }
             
@@ -88,15 +98,16 @@ class CategoryApiController extends Controller
                 'status' => 'success',
                 'message' => 'Category created successfully',
                 'data' => new CategoryResource($category)
-            ], 201);
-        } catch (\Exception $e) {
+            ], 201);        } catch (\Exception $e) {
             return response()->json([
                 'status' => 'error',
                 'message' => 'Failed to create category',
                 'error' => $e->getMessage()
             ], 500);
         }
-    }    /**
+    }
+
+    /**
      * Display the specified category.
      *
      * @param string $uuid
@@ -118,15 +129,16 @@ class CategoryApiController extends Controller
             return response()->json([
                 'status' => 'success',
                 'data' => new CategoryResource($category)
-            ]);
-        } catch (\Exception $e) {
+            ]);        } catch (\Exception $e) {
             return response()->json([
                 'status' => 'error',
                 'message' => 'Failed to retrieve category',
                 'error' => $e->getMessage()
             ], 500);
         }
-    }    /**
+    }
+
+    /**
      * Update the specified category in storage.
      *
      * @param Request $request
@@ -170,6 +182,20 @@ class CategoryApiController extends Controller
                     'errors' => $validator->errors()
                 ], 422);
             }
+              // Additional validation: Ensure name uniqueness if provided
+            if ($request->has('name') && $request->name !== $category->name) {
+                $existingCategory = Category::where('name', $request->name)
+                    ->where('id', '!=', $category->id)
+                    ->first();
+                    
+                if ($existingCategory) {
+                    return response()->json([
+                        'status' => 'error',
+                        'message' => 'Validation failed',
+                        'errors' => ['name' => ['A category with this name already exists.']]
+                    ], 422);
+                }
+            }
             
             // Update the category using service
             $category = $this->categoryService->updateCategory($category, $request->all());
@@ -186,7 +212,9 @@ class CategoryApiController extends Controller
                 'error' => $e->getMessage()
             ], 500);
         }
-    }    /**
+    }
+
+    /**
      * Remove the specified category from storage.
      *
      * @param string $uuid
@@ -220,13 +248,14 @@ class CategoryApiController extends Controller
             } else if (strpos($e->getMessage(), 'Cannot delete category that is in use') !== false) {
                 $statusCode = 409;
             }
-            
-            return response()->json([
+              return response()->json([
                 'status' => 'error',
                 'message' => $e->getMessage(),
             ], $statusCode);
         }
-    }    /**
+    }
+
+    /**
      * Get transactions for a specific category.
      *
      * @param Request $request
@@ -266,10 +295,9 @@ class CategoryApiController extends Controller
                 'start_date' => $request->input('start_date'),
                 'end_date' => $request->input('end_date'),
                 'account_id' => $accountId
-            ];
+            ];            $perPage = $request->input('per_page', 15);
             
-            $perPage = $request->input('per_page', 15);
-              // Get transactions by category using the transaction service with user ID for security
+            // Get transactions by category using the transaction service with user ID for security
             $transactionService = app(\App\Services\TransactionService::class);
             $transactions = $transactionService->getTransactionsByCategory($category->uuid, $filters, $perPage, $user->id);
             
@@ -282,15 +310,16 @@ class CategoryApiController extends Controller
                     'current_page' => $transactions->currentPage(),
                     'last_page' => $transactions->lastPage(),
                 ]
-            ]);
-        } catch (\Exception $e) {
+            ]);        } catch (\Exception $e) {
             return response()->json([
                 'status' => 'error',
                 'message' => 'Failed to retrieve transactions for this category',
                 'error' => $e->getMessage()
             ], 500);
         }
-    }    /**
+    }
+
+    /**
      * Get statistics for a specific category.
      *
      * @param Request $request
