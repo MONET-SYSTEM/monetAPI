@@ -7,6 +7,9 @@ use App\Models\User;
 use App\Services\AuthService;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Str;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 
@@ -224,75 +227,259 @@ class AuthController extends Controller
     /**
      * Update current user password
      */
-    public function updatePassword(Request $request): Response 
-    {
-        // Validate request
-        $request->validate([
-            'current_password' => 'required|string',
-            'password' => 'required|string|min:6|confirmed',
-            'password_confirmation' => 'required|string|min:6',
+    public function googleSignUp(Request $request)
+{
+    try {
+        $validator = Validator::make($request->all(), [
+            'id_token' => 'required|string',
         ]);
 
-        /** @var User $user */
-        $user = Auth::user();
-        
-        // Check if current password is correct
-        if (!Hash::check($request->current_password, $user->password)) {
-            return response([
-                'message' => 'Current password is incorrect',
-                'errors' => [
-                    'current_password' => ['Current password is incorrect']
-                ]
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Validation failed',
+                'errors' => $validator->errors()
             ], 422);
         }
-        
-        // Update password
-        $user->update([
-            'password' => Hash::make($request->password)
+
+        // Verify Google ID Token directly with Google's tokeninfo endpoint
+        $idToken = $request->id_token;
+        $response = Http::get('https://oauth2.googleapis.com/tokeninfo', [
+            'id_token' => $idToken
         ]);
 
-        return response([
-            'message' => 'Password updated successfully'
-        ], 200);
+        if (!$response->successful()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Invalid Google token'
+            ], 401);
+        }
+
+        $googleUser = $response->json();
+
+        // Verify the token is for your app (optional but recommended)
+        $expectedAudiences = [
+            config('services.google.android_client_id'), // Your Android client ID
+            config('services.google.client_id'), // Your web client ID (if you have one)
+        ];
+        
+        if (!in_array($googleUser['aud'] ?? '', array_filter($expectedAudiences))) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Token not issued for this application'
+            ], 401);
+        }
+
+        // Check if user exists
+        $user = User::where('email', $googleUser['email'])->first();
+
+        if (!$user) {
+            // Create new user
+            $user = User::create([
+                'name' => $googleUser['name'] ?? $googleUser['email'],
+                'email' => $googleUser['email'],
+                'google_id' => $googleUser['sub'],
+                'profile_picture' => $googleUser['picture'] ?? null,
+                'email_verified_at' => now(), // Google emails are pre-verified
+                'password' => Hash::make(Str::random(32)), // Random password since they use Google
+            ]);
+        } else {
+            // Update existing user with Google info
+            $user->update([
+                'google_id' => $googleUser['sub'],
+                'profile_picture' => $googleUser['picture'] ?? $user->profile_picture,
+            ]);
+        }
+
+        // Create Sanctum token
+        $token = $user->createToken('api-token')->plainTextToken;
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Google authentication successful',
+            'user' => new UserResource($user),
+            'token' => $token
+        ]);
+
+    } catch (\Exception $e) {
+        return response()->json([
+            'success' => false,
+            'message' => 'Google authentication failed',
+            'error' => $e->getMessage()
+        ], 500);
+        }
     }
     
     /**
-     * Handle Google Sign-in/Sign-up
-     *
-     * @param Request $request
-     * @return Response
+     * Handle Google Login (Existing Users Only)
      */
-    public function googleSignUp(Request $request): Response
+    public function googleLogin(Request $request)
     {
-        // Validate the Google ID token
-        $request->validate([
-            'id_token' => 'required|string',
-        ]);
-        
         try {
-            // Use Google Auth Service to handle authentication
-            $googleAuthService = app(\App\Services\GoogleAuthService::class);
-            $result = $googleAuthService->authenticateWithGoogle($request->id_token);
+            $validator = Validator::make($request->all(), [
+                'id_token' => 'required|string',
+            ]);
+
+            if ($validator->fails()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Validation failed',
+                    'errors' => $validator->errors()
+                ], 422);
+            }
+
+            // Verify Google ID Token
+            $idToken = $request->id_token;
+            $response = Http::get('https://oauth2.googleapis.com/tokeninfo', [
+                'id_token' => $idToken
+            ]);
+
+            if (!$response->successful()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Invalid Google token'
+                ], 401);
+            }
+
+            $googleUser = $response->json();
+
+            // Verify token audience
+            $expectedAudiences = [
+                config('services.google.android_client_id'),
+                config('services.google.client_id'),
+            ];
             
-            $user = $result['user'];
-            $token = $result['token'];
-            $isNewUser = $result['is_new_user'];
-            
-            return response([
-                'message' => $isNewUser ? 'Account created successfully with Google' : 'Login successful with Google',
-                'result' => [
-                    'user' => new UserResource($user),
-                    'token' => $token,
-                    'is_new_user' => $isNewUser
-                ]
-            ], $isNewUser ? 201 : 200);
-            
+            if (!in_array($googleUser['aud'] ?? '', array_filter($expectedAudiences))) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Token not issued for this application'
+                ], 401);
+            }
+
+            // Check if user exists
+            $user = User::where('email', $googleUser['email'])->first();
+
+            if (!$user) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'No account found with this email. Please sign up first.'
+                ], 404);
+            }
+
+            // Update existing user with Google info
+            $user->update([
+                'google_id' => $user->google_id ?? $googleUser['sub'],
+                'profile_picture' => $googleUser['picture'] ?? $user->profile_picture,
+                'email_verified_at' => $user->email_verified_at ?? now(),
+            ]);
+
+            // Create Sanctum token
+            $token = $user->createToken('api-token')->plainTextToken;
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Google login successful',
+                'user' => new UserResource($user),
+                'token' => $token
+            ]);
+
         } catch (\Exception $e) {
-            return response([
-                'message' => 'Google authentication failed',
+            return response()->json([
+                'success' => false,
+                'message' => 'Google login failed',
                 'error' => $e->getMessage()
-            ], 422);
+            ], 500);
         }
     }
     
+    /**
+     * Handle Google Authentication (Auto Login/Signup)
+     */
+    public function googleAuth(Request $request)
+    {
+        try {
+            $validator = Validator::make($request->all(), [
+                'id_token' => 'required|string',
+            ]);
+
+            if ($validator->fails()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Validation failed',
+                    'errors' => $validator->errors()
+                ], 422);
+            }
+
+            // Verify Google ID Token
+            $idToken = $request->id_token;
+            $response = Http::get('https://oauth2.googleapis.com/tokeninfo', [
+                'id_token' => $idToken
+            ]);
+
+            if (!$response->successful()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Invalid Google token'
+                ], 401);
+            }
+
+            $googleUser = $response->json();
+
+            // Verify token audience
+            $expectedAudiences = [
+                config('services.google.android_client_id'),
+                config('services.google.client_id'),
+            ];
+            
+            if (!in_array($googleUser['aud'] ?? '', array_filter($expectedAudiences))) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Token not issued for this application'
+                ], 401);
+            }
+
+            // Check if user exists
+            $user = User::where('email', $googleUser['email'])->first();
+            $isNewUser = false;
+
+            if (!$user) {
+                // Create new user (Sign-up)
+                $user = User::create([
+                    'name' => $googleUser['name'] ?? $googleUser['email'],
+                    'email' => $googleUser['email'],
+                    'google_id' => $googleUser['sub'],
+                    'profile_picture' => $googleUser['picture'] ?? null,
+                    'email_verified_at' => now(),
+                    'password' => Hash::make(Str::random(32)),
+                ]);
+                $isNewUser = true;
+            } else {
+                // Update existing user (Login)
+                $user->update([
+                    'google_id' => $user->google_id ?? $googleUser['sub'],
+                    'profile_picture' => $googleUser['picture'] ?? $user->profile_picture,
+                    'email_verified_at' => $user->email_verified_at ?? now(),
+                ]);
+            }
+
+            // Create Sanctum token
+            $token = $user->createToken('api-token')->plainTextToken;
+
+            return response()->json([
+                'success' => true,
+                'message' => $isNewUser ? 'Google signup successful' : 'Google login successful',
+                'user' => new UserResource($user),
+                'token' => $token,
+                'is_new_user' => $isNewUser
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Google authentication failed',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
 }

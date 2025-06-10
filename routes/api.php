@@ -16,6 +16,8 @@ Route::controller(AuthController::class)->group(function(){
     Route::post('/register', 'register')->name('api.auth.register');
     Route::post('/login', 'login')->name('api.auth.login');
     Route::post('/google-signup', 'googleSignUp')->name('api.auth.google.signup');
+    Route::post('/google-login', 'googleLogin')->name('api.auth.google.login');
+    Route::post('/google-auth', 'googleAuth')->name('api.auth.google.auth');
     Route::post('/reset/otp', 'resetOtp')->name('api.auth.reset.otp');
     Route::post('/reset/password', 'resetPassword')->name('api.auth.reset.password'); 
 
