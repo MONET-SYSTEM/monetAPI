@@ -59,14 +59,15 @@ class BudgetApiController extends Controller
                 'status' => 'error',
                 'message' => 'Failed to retrieve budgets',
                 'error' => $e->getMessage()
-            ], 500);
-        }
-    }    /**
+            ], 500);        }
+    }
+
+    /**
      * Store a newly created budget.
      */
     public function store(Request $request)
     {
-        try {            
+        try {
             $validator = Validator::make($request->all(), [
                 'name' => 'required|string|max:255',
                 'description' => 'nullable|string',
@@ -99,9 +100,10 @@ class BudgetApiController extends Controller
                 return response()->json([
                     'status' => 'error',
                     'message' => 'Validation failed',
-                    'errors' => $validator->errors()
-                ], 422);
-            }            $data = $validator->validated();
+                    'errors' => $validator->errors()                ], 422);
+            }
+            
+            $data = $validator->validated();
             $data['user_id'] = Auth::id();
 
             // Convert category UUID to ID if provided
@@ -155,9 +157,10 @@ class BudgetApiController extends Controller
             return response()->json([
                 'status' => 'error',
                 'message' => 'Budget not found'
-            ], 404);
-        }
-    }    /**
+            ], 404);        }
+    }
+
+    /**
      * Update the specified budget.
      */
     public function update(Request $request, string $uuid)
@@ -165,7 +168,9 @@ class BudgetApiController extends Controller
         try {
             $budget = Budget::where('uuid', $uuid)
                 ->where('user_id', Auth::id())
-                ->firstOrFail();            $validator = Validator::make($request->all(), [
+                ->firstOrFail();
+            
+            $validator = Validator::make($request->all(), [
                 'name' => 'string|max:255',
                 'description' => 'nullable|string',
                 'amount' => 'numeric|min:0.01',
@@ -200,7 +205,9 @@ class BudgetApiController extends Controller
                     'message' => 'Validation failed',
                     'errors' => $validator->errors()
                 ], 422);
-            }            $data = $validator->validated();
+            }
+            
+            $data = $validator->validated();
 
             // Convert category UUID to ID if provided
             if (isset($data['category_id'])) {

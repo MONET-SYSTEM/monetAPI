@@ -70,10 +70,10 @@ class CategoryApiController extends Controller
                 'name' => 'required|string|max:100',
                 'icon' => 'nullable|string|max:50',
                 'type' => 'required|in:income,expense,transfer',
-                'colour_code' => 'nullable|string|max:20',
-                'description' => 'nullable|string|max:255',
+                'colour_code' => 'nullable|string|max:20',                'description' => 'nullable|string|max:255',
             ]);
-              if ($validator->fails()) {
+            
+            if ($validator->fails()) {
                 return response()->json([
                     'status' => 'error',
                     'message' => 'Validation failed',
@@ -144,8 +144,7 @@ class CategoryApiController extends Controller
      * @param Request $request
      * @param string $uuid
      * @return \Illuminate\Http\JsonResponse
-     */
-    public function update(Request $request, $uuid)
+     */    public function update(Request $request, $uuid)
     {
         try {
             // Find the category by UUID using service
@@ -173,6 +172,7 @@ class CategoryApiController extends Controller
                 'type' => 'sometimes|required|in:income,expense,transfer',
                 'colour_code' => 'nullable|string|max:20',
                 'description' => 'nullable|string|max:255',
+                // Note: is_system should not be updatable by users
             ]);
             
             if ($validator->fails()) {
@@ -182,7 +182,11 @@ class CategoryApiController extends Controller
                     'errors' => $validator->errors()
                 ], 422);
             }
-              // Additional validation: Ensure name uniqueness if provided
+            
+            // Remove is_system from request data to prevent unauthorized modification
+            $updateData = $request->except(['is_system']);
+            
+            // Additional validation: Ensure name uniqueness if provided
             if ($request->has('name') && $request->name !== $category->name) {
                 $existingCategory = Category::where('name', $request->name)
                     ->where('id', '!=', $category->id)
@@ -198,7 +202,7 @@ class CategoryApiController extends Controller
             }
             
             // Update the category using service
-            $category = $this->categoryService->updateCategory($category, $request->all());
+            $category = $this->categoryService->updateCategory($category, $updateData);
             
             return response()->json([
                 'status' => 'success',

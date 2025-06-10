@@ -16,7 +16,6 @@ class BudgetResource extends JsonResource
     {
         return [
             'id' => $this->uuid,
-            'uuid' => $this->uuid,
             'name' => $this->name,
             'description' => $this->description ?? '',
             'amount' => (float) $this->amount,

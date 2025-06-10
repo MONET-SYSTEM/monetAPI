@@ -72,7 +72,7 @@ Route::controller(CategoryApiController::class)->group(function () {
     Route::get('/category/{uuid}/transactions', 'transactions')->name('api.category.transactions')->middleware('auth:sanctum');
     Route::get('/category/{uuid}/statistics', 'statistics')->name('api.category.statistics')->middleware('auth:sanctum');
     Route::post('/category', 'store')->name('api.category.store')->middleware('auth:sanctum');
-    Route::patch('/category/{uuid}', 'update')->name('api.category.update')->middleware('auth:sanctum');
+    Route::put('/category/{uuid}', 'update')->name('api.category.update')->middleware('auth:sanctum');
     Route::delete('/category/{uuid}', 'destroy')->name('api.category.destroy')->middleware('auth:sanctum');
 });
 
