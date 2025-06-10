@@ -10,99 +10,101 @@ Route::get('/', function () {
     return view('welcome');
 });
 
+// Redirect auth/login to admin/login for AdminLTE compatibility
+Route::get('/auth/login', function () {
+    return redirect()->route('admin.login');
+});
+
 // Set up routes for user authentication (login, registration)
 Auth::routes();
 
 // Route for the home page after a user logs in
 Route::get('/home', [App\Http\Controllers\HomeController::class, 'index'])->name('home');
 
-// Define resourceful routes for user management under the admin panel
-// These routes are protected so only authenticated users can access them
-Route::resource('admin/users', UserController::class)->middleware('auth')->names([
+// Test route (remove this later)
+Route::get('/admin/test', function () {
+    return 'Admin route is working!';
+});
 
-        'index'   => 'admin.users.index',   // List all users
-        'create'  => 'admin.users.create',  // Show form to create a new user
-        'store'   => 'admin.users.store',   // Save a new user
-        'show'    => 'admin.users.show',    // Display a specific user's details
-        'edit'    => 'admin.users.edit',    // Show form to edit a user
-        'update'  => 'admin.users.update',  // Update an existing user
-        'destroy' => 'admin.users.destroy', // Delete a user
-]);
-
-Route::get('admin/accounts/trends', [AccountController::class, 'trends'])->middleware('auth')->name('admin.accounts.trends');
-
-// Define resourceful routes for account management under the admin panel
-// These routes are protected so only authenticated users can access them
-Route::resource('admin/accounts', AccountController::class)->middleware('auth')->names([
-
-        'index'   => 'admin.accounts.index',    // List all accounts
-        'create'  => 'admin.accounts.create',   // Show form to create a new account
-        'store'   => 'admin.accounts.store',    // Save a new account
-        'show'    => 'admin.accounts.show',     // Display a specific account's details
-        'edit'    => 'admin.accounts.edit',     // Show form to edit an account
-        'update'  => 'admin.accounts.update',   // Update an existing account
-        'destroy' => 'admin.accounts.destroy',  // Delete an account
-]);
-
-// Transactions routes
-Route::get('admin/transactions/statistics', [App\Http\Controllers\TransactionController::class, 'statistics'])
-    ->middleware('auth')
-    ->name('admin.transactions.statistics');
+// Admin Authentication Routes
+Route::prefix('admin')->group(function () {
+    Route::get('login', [App\Http\Controllers\Admin\AdminAuthController::class, 'showLoginForm'])->name('admin.login');
+    Route::post('login', [App\Http\Controllers\Admin\AdminAuthController::class, 'login']);
+    Route::post('logout', [App\Http\Controllers\Admin\AdminAuthController::class, 'logout'])->name('admin.logout');
     
-Route::get('admin/transactions/exchange-rate', [App\Http\Controllers\TransactionController::class, 'getExchangeRate'])
-    ->middleware('auth')
-    ->name('admin.transactions.exchange-rate');
-
-Route::get('admin/transactions/api-token', [App\Http\Controllers\TransactionController::class, 'generateApiToken'])
-    ->middleware('auth')
-    ->name('admin.transactions.api-token');
+    // Test dashboard without middleware temporarily
+    Route::get('dashboard-test', function() {
+        return 'Dashboard route is working!';
+    })->name('admin.dashboard.test');
     
-Route::post('admin/transactions/transfer', [App\Http\Controllers\TransactionController::class, 'transfer'])
-    ->middleware('auth')
-    ->name('admin.transactions.transfer');
-    
-Route::post('admin/transactions/currency-transfer', [App\Http\Controllers\TransactionController::class, 'currencyTransfer'])
-    ->middleware('auth')
-    ->name('admin.transactions.currency-transfer');
+    // Admin Protected Routes
+    Route::middleware('admin')->group(function () {
+        Route::get('dashboard', [App\Http\Controllers\Admin\AdminDashboardController::class, 'index'])->name('admin.dashboard');
+        Route::get('/', function() {
+            return redirect()->route('admin.dashboard');
+        });
+        
+        // Admin Profile Management
+        Route::get('profile', [App\Http\Controllers\Admin\AdminProfileController::class, 'show'])->name('admin.profile');
+        Route::put('profile', [App\Http\Controllers\Admin\AdminProfileController::class, 'update'])->name('admin.profile.update');
+        Route::put('profile/password', [App\Http\Controllers\Admin\AdminProfileController::class, 'updatePassword'])->name('admin.profile.password');
+        
+        // System Settings
+        Route::get('settings', [App\Http\Controllers\Admin\AdminSettingsController::class, 'index'])->name('admin.settings');
+        Route::put('settings', [App\Http\Controllers\Admin\AdminSettingsController::class, 'update'])->name('admin.settings.update');
+        Route::put('settings/mail', [App\Http\Controllers\Admin\AdminSettingsController::class, 'updateMail'])->name('admin.settings.mail');
+        Route::post('settings/test-email', [App\Http\Controllers\Admin\AdminSettingsController::class, 'testEmail'])->name('admin.settings.test-email');
+        Route::post('settings/test-database', [App\Http\Controllers\Admin\AdminSettingsController::class, 'testDatabase'])->name('admin.settings.test-database');
+        Route::post('settings/clear-cache', [App\Http\Controllers\Admin\AdminSettingsController::class, 'clearCache'])->name('admin.settings.clear-cache');
+        
+        // User Management (Admin only)
+        Route::resource('users', UserController::class)->names([
+            'index'   => 'admin.users.index',
+            'create'  => 'admin.users.create',
+            'store'   => 'admin.users.store',
+            'show'    => 'admin.users.show',
+            'edit'    => 'admin.users.edit',
+            'update'  => 'admin.users.update',
+            'destroy' => 'admin.users.destroy',
+        ]);
 
-Route::resource('admin/transactions', App\Http\Controllers\TransactionController::class)
-    ->middleware('auth')
-    ->names([
-        'index'   => 'admin.transactions.index',    // List all transactions
-        'create'  => 'admin.transactions.create',   // Show form to create a new transaction
-        'store'   => 'admin.transactions.store',    // Save a new transaction
-        'show'    => 'admin.transactions.show',     // Display a specific transaction's details
-        'edit'    => 'admin.transactions.edit',     // Show form to edit a transaction
-        'update'  => 'admin.transactions.update',   // Update an existing transaction
-        'destroy' => 'admin.transactions.destroy',  // Delete a transaction
-    ]);
+        // Account Management (Admin only)
+        Route::get('accounts/trends', [AccountController::class, 'trends'])->name('admin.accounts.trends');
+        Route::resource('accounts', AccountController::class)->names([
+            'index'   => 'admin.accounts.index',
+            'create'  => 'admin.accounts.create',
+            'store'   => 'admin.accounts.store',
+            'show'    => 'admin.accounts.show',
+            'edit'    => 'admin.accounts.edit',
+            'update'  => 'admin.accounts.update',
+            'destroy' => 'admin.accounts.destroy',
+        ]);
 
-// Transfer route
-Route::post('admin/transactions/transfer', [App\Http\Controllers\TransactionController::class, 'transfer'])
-    ->middleware('auth')
-    ->name('admin.transactions.transfer');
+        // Transaction Management (Admin only)
+        Route::get('transactions/statistics', [App\Http\Controllers\TransactionController::class, 'statistics'])->name('admin.transactions.statistics');
+        Route::get('transactions/exchange-rate', [App\Http\Controllers\TransactionController::class, 'getExchangeRate'])->name('admin.transactions.exchange-rate');
+        Route::get('transactions/api-token', [App\Http\Controllers\TransactionController::class, 'generateApiToken'])->name('admin.transactions.api-token');
+        Route::post('transactions/transfer', [App\Http\Controllers\TransactionController::class, 'transfer'])->name('admin.transactions.transfer');
+        Route::post('transactions/currency-transfer', [App\Http\Controllers\TransactionController::class, 'currencyTransfer'])->name('admin.transactions.currency-transfer');
+        
+        Route::resource('transactions', App\Http\Controllers\TransactionController::class)->names([
+            'index'   => 'admin.transactions.index',
+            'create'  => 'admin.transactions.create',
+            'store'   => 'admin.transactions.store',
+            'show'    => 'admin.transactions.show',
+            'edit'    => 'admin.transactions.edit',
+            'update'  => 'admin.transactions.update',
+            'destroy' => 'admin.transactions.destroy',
+        ]);
+    });
+});
 
-// Profile routes
-Route::get('profile', [App\Http\Controllers\ProfileController::class, 'show'])
-    ->middleware('auth')
-    ->name('profile.show');
-
-Route::get('profile/edit', [App\Http\Controllers\ProfileController::class, 'edit'])
-    ->middleware('auth')
-    ->name('profile.edit');
-
-Route::put('profile', [App\Http\Controllers\ProfileController::class, 'update'])
-    ->middleware('auth')
-    ->name('profile.update');
-
-Route::get('profile/password', [App\Http\Controllers\ProfileController::class, 'editPassword'])
-    ->middleware('auth')
-    ->name('profile.password.edit');
-
-Route::put('profile/password', [App\Http\Controllers\ProfileController::class, 'updatePassword'])
-    ->middleware('auth')
-    ->name('profile.password.update');
-
-Route::delete('profile/avatar', [App\Http\Controllers\ProfileController::class, 'deleteAvatar'])
-    ->middleware('auth')
-    ->name('profile.avatar.delete');
+// Profile routes (for regular users)
+Route::middleware('auth')->group(function () {
+    Route::get('profile', [App\Http\Controllers\ProfileController::class, 'show'])->name('profile.show');
+    Route::get('profile/edit', [App\Http\Controllers\ProfileController::class, 'edit'])->name('profile.edit');
+    Route::put('profile', [App\Http\Controllers\ProfileController::class, 'update'])->name('profile.update');
+    Route::get('profile/password', [App\Http\Controllers\ProfileController::class, 'editPassword'])->name('profile.password.edit');
+    Route::put('profile/password', [App\Http\Controllers\ProfileController::class, 'updatePassword'])->name('profile.password.update');
+    Route::delete('profile/avatar', [App\Http\Controllers\ProfileController::class, 'deleteAvatar'])->name('profile.avatar.delete');
+});

@@ -36,7 +36,7 @@
                             <option value="">All Accounts</option>
                             @foreach($accounts as $account)
                                 <option value="{{ $account->id }}" {{ request('account_id') == $account->id ? 'selected' : '' }}>
-                                    {{ $account->name }} ({{ $account->currency->symbol }})
+                                    {{ $account->user->name }} - {{ $account->name }} ({{ $account->currency->symbol }})
                                 </option>
                             @endforeach
                         </select>
@@ -59,6 +59,18 @@
                             @foreach($categories as $category)
                                 <option value="{{ $category->id }}" {{ request('category_id') == $category->id ? 'selected' : '' }}>
                                     {{ $category->name }}
+                                </option>
+                            @endforeach
+                        </select>
+                    </div>
+                    
+                    <div class="form-group mr-2">
+                        <label for="user_id" class="mr-1">User:</label>
+                        <select name="user_id" id="user_id" class="form-control form-control-sm">
+                            <option value="">All Users</option>
+                            @foreach($users as $user)
+                                <option value="{{ $user->id }}" {{ request('user_id') == $user->id ? 'selected' : '' }}>
+                                    {{ $user->name }}
                                 </option>
                             @endforeach
                         </select>
@@ -101,6 +113,7 @@
                         <thead>
                             <tr>
                                 <th>Date</th>
+                                <th>User</th>
                                 <th>Account</th>
                                 <th>Type</th>
                                 <th>Category</th>
@@ -114,6 +127,7 @@
                             @forelse($transactions as $transaction)
                                 <tr>
                                     <td>{{ $transaction->transaction_date->format('Y-m-d') }}</td>
+                                    <td>{{ $transaction->account->user->name }}</td>
                                     <td>{{ $transaction->account->name }}</td>                                    <td>
                                         @if($transaction->type == 'income')
                                             <span class="badge badge-success">Income</span>

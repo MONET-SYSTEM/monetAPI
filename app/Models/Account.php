@@ -49,6 +49,11 @@ class Account extends BaseModel
         return $this->belongsTo(Currency::class, 'currency_id');
     }
 
+    public function user(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'user_id');
+    }
+
     public function getInitialBalanceTextAttribute(): string
     {
         return $this->currency->format($this->initial_balance);

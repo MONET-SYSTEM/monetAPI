@@ -15,27 +15,17 @@ use Illuminate\Support\Facades\Validator;
 
 class TransactionController extends Controller
 {
-    protected $transactionService;
-
-    public function __construct(TransactionService $transactionService)
+    protected $transactionService;    public function __construct(TransactionService $transactionService)
     {
+        $this->middleware('admin');
         $this->transactionService = $transactionService;
-    }
-
-    /**
+    }    /**
      * Display a listing of the transactions.
      */
     public function index(Request $request)
     {
-        // Get the authenticated user
-        $user = Auth::user();
-        
-        // Get user accounts
-        $accounts = Account::where('user_id', $user->id)->get();
-        $accountIds = $accounts->pluck('id')->toArray();
-        
-        // Build query
-        $query = Transaction::whereIn('account_id', $accountIds);
+        // For admin access, show all transactions from all users
+        $query = Transaction::with(['account.user', 'category']);
         
         // Apply filters if provided
         if ($request->has('account_id') && $request->account_id) {
@@ -50,54 +40,50 @@ class TransactionController extends Controller
             $query->where('category_id', $request->category_id);
         }
         
+        if ($request->has('user_id') && $request->user_id) {
+            $query->whereHas('account', function($q) use ($request) {
+                $q->where('user_id', $request->user_id);
+            });
+        }
+        
         if ($request->has('start_date') && $request->has('end_date')) {
             $query->whereBetween('transaction_date', [$request->start_date, $request->end_date]);
         }
         
         // Get transactions with pagination
-        $transactions = $query->with(['account', 'category'])
-            ->orderBy('transaction_date', 'desc')
+        $transactions = $query->orderBy('transaction_date', 'desc')
             ->paginate(15);
+        
+        // Get all accounts for filtering (admin can see all accounts)
+        $accounts = Account::with('user')->get();
         
         // Get categories for filtering
         $categories = Category::all();
         
-        return view('admin.transactions.index', compact('transactions', 'accounts', 'categories'));
+        // Get all users for filtering
+        $users = \App\Models\User::all();
+        
+        return view('admin.transactions.index', compact('transactions', 'accounts', 'categories', 'users'));
     }    /**
      * Show the form for creating a new transaction.
      */
     public function create()
     {
-        // Get the authenticated user
-        $user = Auth::user();
-        
-        // Get user accounts only
-        $accounts = Account::where('user_id', $user->id)->get();
+        // For admin access, show all accounts from all users
+        $accounts = Account::with('user', 'currency')->get();
         
         // Get categories
         $categories = Category::all();
         
         return view('admin.transactions.create', compact('accounts', 'categories'));
-    }/**
+    }    /**
      * Store a newly created transaction in storage.
      */
     public function store(Request $request)
     {
-        // Get the authenticated user
-        $user = Auth::user();
-        
-        // Validate input with custom validation for user accounts and categories
+        // For admin access, validate input without user restrictions
         $validator = Validator::make($request->all(), [
-            'account_id' => [
-                'required',
-                'exists:accounts,id',
-                function ($attribute, $value, $fail) use ($user) {
-                    $account = Account::find($value);
-                    if ($account && $account->user_id !== $user->id) {
-                        $fail('The selected account does not belong to you.');
-                    }
-                }
-            ],
+            'account_id' => 'required|exists:accounts,id',
             'amount' => 'required|numeric|min:0.01',
             'type' => 'required|in:income,expense,transfer',
             'category_id' => [
@@ -148,22 +134,14 @@ class TransactionController extends Controller
                 ->with('error', 'Error creating transaction: ' . $e->getMessage())
                 ->withInput();
         }
-    }
-
-    /**
+    }    /**
      * Display the specified transaction.
      */
     public function show(Transaction $transaction)
     {
-        // Authorize that the user can view this transaction
-        $user = Auth::user();
-        $account = Account::find($transaction->account_id);
-        
-        if ($account->user_id !== $user->id) {
-            abort(403, 'Unauthorized action.');        }
-        
+        // Admin can view any transaction
         // Load relationships
-        $transaction->load(['account', 'category']);
+        $transaction->load(['account.user', 'category']);
         
         return view('admin.transactions.show', compact('transaction'));
     }    /**
@@ -171,46 +149,23 @@ class TransactionController extends Controller
      */
     public function edit(Transaction $transaction)
     {
-        // Authorize that the user can edit this transaction
-        $user = Auth::user();
-        $account = Account::find($transaction->account_id);
-        
-        if ($account->user_id !== $user->id) {
-            abort(403, 'Unauthorized action.');
-        }
-        
-        // Get user accounts only
-        $accounts = Account::where('user_id', $user->id)->get();
+        // Admin can edit any transaction
+        // Get all accounts for admin access
+        $accounts = Account::with('user', 'currency')->get();
         
         // Get categories
         $categories = Category::all();
         
         return view('admin.transactions.edit', compact('transaction', 'accounts', 'categories'));
-    }/**
+    }    /**
      * Update the specified transaction in storage.
      */
     public function update(Request $request, Transaction $transaction)
     {
-        // Authorize that the user can update this transaction
-        $user = Auth::user();
-        $account = Account::find($transaction->account_id);
-        
-        if ($account->user_id !== $user->id) {
-            abort(403, 'Unauthorized action.');
-        }
-        
-        // Validate input with custom validation for user accounts and categories
+        // Admin can update any transaction without user restrictions
+        // Validate input without user account restrictions
         $validator = Validator::make($request->all(), [
-            'account_id' => [
-                'required',
-                'exists:accounts,id',
-                function ($attribute, $value, $fail) use ($user) {
-                    $account = Account::find($value);
-                    if ($account && $account->user_id !== $user->id) {
-                        $fail('The selected account does not belong to you.');
-                    }
-                }
-            ],
+            'account_id' => 'required|exists:accounts,id',
             'amount' => 'required|numeric|min:0.01',
             'type' => 'required|in:income,expense,transfer',
             'category_id' => [
@@ -252,21 +207,12 @@ class TransactionController extends Controller
                 ->with('error', 'Error updating transaction: ' . $e->getMessage())
                 ->withInput();
         }
-    }
-
-    /**
+    }    /**
      * Remove the specified transaction from storage.
      */
     public function destroy(Transaction $transaction)
     {
-        // Authorize that the user can delete this transaction
-        $user = Auth::user();
-        $account = Account::find($transaction->account_id);
-        
-        if ($account->user_id !== $user->id) {
-            abort(403, 'Unauthorized action.');
-        }
-        
+        // Admin can delete any transaction without user authorization
         try {
             // Delete the transaction using the service
             $this->transactionService->deleteTransaction($transaction);
@@ -277,18 +223,13 @@ class TransactionController extends Controller
             return redirect()->route('admin.transactions.index')
                 ->with('error', 'Error deleting transaction: ' . $e->getMessage());
         }
-    }
-
-    /**
+    }    /**
      * Display transaction statistics and analytics.
      */
     public function statistics(Request $request)
     {
-        // Get the authenticated user
-        $user = Auth::user();
-        
-        // Get user accounts
-        $accounts = Account::where('user_id', $user->id)->get();
+        // For admin access, show statistics for all users/accounts
+        $accounts = Account::with('user')->get();
         $accountIds = $accounts->pluck('id')->toArray();
         
         // Get date range

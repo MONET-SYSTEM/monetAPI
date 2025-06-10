@@ -11,12 +11,10 @@ use Illuminate\Support\Facades\Auth;
 
 class AccountController extends Controller
 {
-    protected $accountService;
-
-    // Only allow logged-in users to access these actions.
+    protected $accountService;    // Only allow admin users to access these actions.
     public function __construct(AccountService $accountService)
     {
-        $this->middleware('auth');
+        $this->middleware('admin');
         $this->accountService = $accountService;
     }
 

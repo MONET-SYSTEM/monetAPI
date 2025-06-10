@@ -276,8 +276,7 @@ class TransactionService
                         'monthly_data' => []
                     ];
                 }
-            }
-        } else {
+            }        } else {
             // If no specific account is selected, get all accounts for the specified user
             if ($userId) {
                 $userAccounts = Account::where('user_id', $userId)->pluck('id')->toArray();
@@ -294,9 +293,13 @@ class TransactionService
                 }
                 $query->whereIn('account_id', $userAccounts);
             } else {
-                // Fallback to Auth::user() for backward compatibility
-                $userAccounts = Auth::user()->accounts()->pluck('id')->toArray();
-                $query->whereIn('account_id', $userAccounts);
+                // Fallback to Auth::user() for backward compatibility, or all accounts if no user (admin context)
+                $user = Auth::user();
+                if ($user && $user->accounts) {
+                    $userAccounts = $user->accounts()->pluck('id')->toArray();
+                    $query->whereIn('account_id', $userAccounts);
+                }
+                // If no user or no accounts method, don't filter by account (admin sees all)
             }
         }
 
@@ -319,12 +322,22 @@ class TransactionService
                 DB::raw('SUM(transactions.amount) as total')
             )
             ->join('categories', 'transactions.category_id', '=', 'categories.id')
-            ->whereBetween('transaction_date', [$startDate, $endDate]);
-
-        if ($accountId) {
+            ->whereBetween('transaction_date', [$startDate, $endDate]);        if ($accountId) {
             $categories->where('account_id', $accountId);
         } else {
-            $categories->whereIn('account_id', Auth::user()->accounts()->pluck('id')->toArray());
+            // Filter by user accounts if we have userId, otherwise show all (admin context)
+            if ($userId) {
+                $userAccounts = Account::where('user_id', $userId)->pluck('id')->toArray();
+                if (!empty($userAccounts)) {
+                    $categories->whereIn('account_id', $userAccounts);
+                }
+            } else {
+                $user = Auth::user();
+                if ($user && $user->accounts) {
+                    $categories->whereIn('account_id', $user->accounts()->pluck('id')->toArray());
+                }
+                // If no user or no accounts method, don't filter (admin sees all)
+            }
         }
 
         $categories = $categories->groupBy('categories.id', 'categories.uuid', 'categories.name', 'categories.colour_code', 'categories.icon', 'transactions.type')
@@ -339,12 +352,22 @@ class TransactionService
                 DB::raw('SUM(amount) as total')
             )
             ->whereNull('category_id')
-            ->whereBetween('transaction_date', [$startDate, $endDate]);
-
-        if ($accountId) {
+            ->whereBetween('transaction_date', [$startDate, $endDate]);        if ($accountId) {
             $uncategorized->where('account_id', $accountId);
         } else {
-            $uncategorized->whereIn('account_id', Auth::user()->accounts()->pluck('id')->toArray());
+            // Filter by user accounts if we have userId, otherwise show all (admin context)
+            if ($userId) {
+                $userAccounts = Account::where('user_id', $userId)->pluck('id')->toArray();
+                if (!empty($userAccounts)) {
+                    $uncategorized->whereIn('account_id', $userAccounts);
+                }
+            } else {
+                $user = Auth::user();
+                if ($user && $user->accounts) {
+                    $uncategorized->whereIn('account_id', $user->accounts()->pluck('id')->toArray());
+                }
+                // If no user or no accounts method, don't filter (admin sees all)
+            }
         }
 
         $uncategorized = $uncategorized->groupBy('type')
@@ -373,16 +396,19 @@ class TransactionService
                 DB::raw('DATE_FORMAT(transaction_date, "%Y-%m") as month'),
                 'type',
                 DB::raw('SUM(amount) as total')
-            )
-            ->whereDate('transaction_date', '>=', now()->subMonths($months))
+            )            ->whereDate('transaction_date', '>=', now()->subMonths($months))
             ->whereDate('transaction_date', '<=', now());
 
         if ($accountId) {
             $query->where('account_id', $accountId);
         } else {
-            // If no specific account is selected, get all accounts for the current user
-            $userAccounts = Auth::user()->accounts()->pluck('id')->toArray();
-            $query->whereIn('account_id', $userAccounts);
+            // If no specific account is selected, try to get accounts for the current user
+            $user = Auth::user();
+            if ($user && $user->accounts) {
+                $userAccounts = $user->accounts()->pluck('id')->toArray();
+                $query->whereIn('account_id', $userAccounts);
+            }
+            // If no user or no accounts method, don't filter (admin sees all)
         }
 
         return $query->groupBy('month', 'type')
@@ -400,14 +426,16 @@ class TransactionService
     public function getRecentTransactions($accountId = null, $limit = 5): Collection
     {
         $query = Transaction::with(['account', 'category'])
-            ->orderBy('transaction_date', 'desc');
-
-        if ($accountId) {
+            ->orderBy('transaction_date', 'desc');        if ($accountId) {
             $query->where('account_id', $accountId);
         } else {
-            // If no specific account is selected, get all accounts for the current user
-            $userAccounts = Auth::user()->accounts()->pluck('id')->toArray();
-            $query->whereIn('account_id', $userAccounts);
+            // If no specific account is selected, try to get accounts for the current user
+            $user = Auth::user();
+            if ($user && $user->accounts) {
+                $userAccounts = $user->accounts()->pluck('id')->toArray();
+                $query->whereIn('account_id', $userAccounts);
+            }
+            // If no user or no accounts method, don't filter (admin sees all)
         }
 
         return $query->limit($limit)->get();
@@ -440,13 +468,16 @@ class TransactionService
             $userAccounts = Account::where('user_id', $userId)->pluck('id')->toArray();
             if (empty($userAccounts)) {
                 // User has no accounts, return empty results
-                return new LengthAwarePaginator([], 0, $perPage);
-            }
+                return new LengthAwarePaginator([], 0, $perPage);            }
             $query->whereIn('account_id', $userAccounts);
         } else {
             // Fallback to Auth::user() for backward compatibility
-            $userAccounts = Auth::user()->accounts()->pluck('id')->toArray();
-            $query->whereIn('account_id', $userAccounts);
+            $user = Auth::user();
+            if ($user && $user->accounts) {
+                $userAccounts = $user->accounts()->pluck('id')->toArray();
+                $query->whereIn('account_id', $userAccounts);
+            }
+            // If no user or no accounts method, don't filter (admin sees all)
         }
             
         // Apply date range filters
@@ -541,12 +572,15 @@ class TransactionService
                         'net' => 0,
                         'monthly_data' => []
                     ];
-                }
-                $query->whereIn('account_id', $userAccounts);
+                }                $query->whereIn('account_id', $userAccounts);
             } else {
                 // Fallback to Auth::user() for backward compatibility
-                $userAccounts = Auth::user()->accounts()->pluck('id')->toArray();
-                $query->whereIn('account_id', $userAccounts);
+                $user = Auth::user();
+                if ($user && $user->accounts) {
+                    $userAccounts = $user->accounts()->pluck('id')->toArray();
+                    $query->whereIn('account_id', $userAccounts);
+                }
+                // If no user or no accounts method, don't filter (admin sees all)
             }
         }
 
@@ -571,12 +605,15 @@ class TransactionService
 
         if ($accountId) {
             $monthlyData->where('account_id', $accountId);
-        } else {
-            if ($userId) {
+        } else {            if ($userId) {
                 $userAccounts = Account::where('user_id', $userId)->pluck('id')->toArray();
                 $monthlyData->whereIn('account_id', $userAccounts);
             } else {
-                $monthlyData->whereIn('account_id', Auth::user()->accounts()->pluck('id')->toArray());
+                $user = Auth::user();
+                if ($user && $user->accounts) {
+                    $monthlyData->whereIn('account_id', $user->accounts()->pluck('id')->toArray());
+                }
+                // If no user or no accounts method, don't filter (admin sees all)
             }
         }
 

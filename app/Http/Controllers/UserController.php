@@ -6,11 +6,10 @@ use App\Models\User;
 use Illuminate\Http\Request;
 
 class UserController extends Controller
-{
-    // Only allow logged-in users to access these actions.
+{    // Only allow admin users to access these actions.
     public function __construct()
     {
-        $this->middleware('auth');
+        $this->middleware('admin');
     }
 
     // List all users.

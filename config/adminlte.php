@@ -256,15 +256,26 @@ return [
     |
     */
 
-    'use_route_url' => false,
-    'dashboard_url' => 'home',
-    'logout_url' => 'logout',
-    'login_url' => 'login',
-    'register_url' => 'register',
-    'password_reset_url' => 'password/reset',
-    'password_email_url' => 'password/email',
-    'profile_url' => false,
+    'use_route_url' => true,
+    'dashboard_url' => 'admin.dashboard',
+    'logout_url' => 'admin.logout',
+    'login_url' => 'admin.login',
+    'register_url' => false,
+    'password_reset_url' => false,
+    'password_email_url' => false,
+    'profile_url' => 'admin/profile',
     'disable_darkmode_routes' => false,
+
+    /*
+    |--------------------------------------------------------------------------
+    | Auth Guard
+    |--------------------------------------------------------------------------
+    |
+    | Here you can specify the guard used for AdminLTE authentication.
+    |
+    */
+
+    'auth_guard' => 'admin',
 
     /*
     |--------------------------------------------------------------------------
@@ -315,11 +326,16 @@ return [
             'type' => 'sidebar-menu-search',
             'text' => 'search',
         ],
+        
+        // Dashboard
         [
-            'text' => 'blog',
-            'url' => 'admin/blog',
-            'can' => 'manage-blog',
+            'text' => 'Dashboard',
+            'url' => 'admin/dashboard',
+            'icon' => 'fas fa-tachometer-alt',
         ],
+        
+        ['header' => 'MANAGEMENT'],
+        
         [
             'text'    => 'User Management',
             'icon'    => 'fas fa-users',
@@ -378,21 +394,17 @@ return [
                 ],
             ],
         ],
-        ['header' => 'account_settings'],
+        
+        ['header' => 'ADMIN SETTINGS'],
         [
-            'text' => 'My Profile',
-            'url' => 'profile',
-            'icon' => 'fas fa-fw fa-user',
+            'text' => 'Admin Profile',
+            'url' => 'admin/profile',
+            'icon' => 'fas fa-user-shield',
         ],
         [
-            'text' => 'Edit Profile',
-            'url' => 'profile/edit',
-            'icon' => 'fas fa-fw fa-edit',
-        ],
-        [
-            'text' => 'Change Password',
-            'url' => 'profile/password',
-            'icon' => 'fas fa-fw fa-lock',
+            'text' => 'System Settings',
+            'url' => 'admin/settings',
+            'icon' => 'fas fa-cogs',
         ],
     ],
 
