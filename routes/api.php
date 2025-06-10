@@ -72,7 +72,7 @@ Route::controller(CategoryApiController::class)->group(function () {
     Route::get('/category/{uuid}/transactions', 'transactions')->name('api.category.transactions')->middleware('auth:sanctum');
     Route::get('/category/{uuid}/statistics', 'statistics')->name('api.category.statistics')->middleware('auth:sanctum');
     Route::post('/category', 'store')->name('api.category.store')->middleware('auth:sanctum');
-    Route::put('/category/{uuid}', 'update')->name('api.category.update')->middleware('auth:sanctum');
+    Route::patch('/category/{uuid}', 'update')->name('api.category.update')->middleware('auth:sanctum');
     Route::delete('/category/{uuid}', 'destroy')->name('api.category.destroy')->middleware('auth:sanctum');
 });
 
@@ -83,7 +83,7 @@ Route::controller(BudgetApiController::class)->group(function () {
     Route::get('/budget/{uuid}', 'show')->name('api.budget.show')->middleware('auth:sanctum');
     Route::get('/budget/{uuid}/performance', 'performance')->name('api.budget.performance')->middleware('auth:sanctum');
     Route::post('/budget', 'store')->name('api.budget.store')->middleware('auth:sanctum');
-    Route::patch('/budget/{uuid}', 'update')->name('api.budget.update')->middleware('auth:sanctum');
+    Route::put('/budget/{uuid}', 'update')->name('api.budget.update')->middleware('auth:sanctum');
     Route::delete('/budget/{uuid}', 'destroy')->name('api.budget.destroy')->middleware('auth:sanctum');
 });
 
