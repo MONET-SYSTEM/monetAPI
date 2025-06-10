@@ -256,4 +256,43 @@ class AuthController extends Controller
         ], 200);
     }
     
+    /**
+     * Handle Google Sign-in/Sign-up
+     *
+     * @param Request $request
+     * @return Response
+     */
+    public function googleSignUp(Request $request): Response
+    {
+        // Validate the Google ID token
+        $request->validate([
+            'id_token' => 'required|string',
+        ]);
+        
+        try {
+            // Use Google Auth Service to handle authentication
+            $googleAuthService = app(\App\Services\GoogleAuthService::class);
+            $result = $googleAuthService->authenticateWithGoogle($request->id_token);
+            
+            $user = $result['user'];
+            $token = $result['token'];
+            $isNewUser = $result['is_new_user'];
+            
+            return response([
+                'message' => $isNewUser ? 'Account created successfully with Google' : 'Login successful with Google',
+                'result' => [
+                    'user' => new UserResource($user),
+                    'token' => $token,
+                    'is_new_user' => $isNewUser
+                ]
+            ], $isNewUser ? 201 : 200);
+            
+        } catch (\Exception $e) {
+            return response([
+                'message' => 'Google authentication failed',
+                'error' => $e->getMessage()
+            ], 422);
+        }
+    }
+    
 }

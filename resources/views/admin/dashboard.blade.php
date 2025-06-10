@@ -66,18 +66,17 @@
                 </a>
             </div>
         </div>
-        
-        <div class="col-lg-3 col-6">
+          <div class="col-lg-3 col-6">
             <div class="small-box bg-danger">
                 <div class="inner">
                     <h3><i class="fas fa-cog"></i></h3>
-                    <p>Admin Panel</p>
+                    <p>System Settings</p>
                 </div>
                 <div class="icon">
                     <i class="fas fa-shield-alt"></i>
                 </div>
-                <a href="#" class="small-box-footer">
-                    System Status <i class="fas fa-arrow-circle-right"></i>
+                <a href="{{ route('admin.settings') }}" class="small-box-footer">
+                    Configure System <i class="fas fa-arrow-circle-right"></i>
                 </a>
             </div>
         </div>
@@ -147,21 +146,20 @@
                                     <th>Actions</th>
                                 </tr>
                             </thead>
-                            <tbody>
-                                @forelse($stats['recent_transactions'] as $transaction)
+                            <tbody>                                @forelse($stats['recent_transactions'] as $transaction)
                                     <tr>
                                         <td>
-                                            <span class="badge badge-{{ $transaction->type == 'income' ? 'success' : 'danger' }}">
+                                            <span class="badge badge-{{ $transaction->type == 'income' ? 'success' : ($transaction->type == 'expense' ? 'danger' : 'primary') }}">
                                                 {{ number_format($transaction->amount, 2) }}
                                             </span>
                                         </td>
                                         <td>
-                                            <i class="fas fa-{{ $transaction->type == 'income' ? 'arrow-up' : 'arrow-down' }}"></i>
+                                            <i class="fas fa-{{ $transaction->type == 'income' ? 'arrow-up text-success' : ($transaction->type == 'expense' ? 'arrow-down text-danger' : 'exchange-alt text-primary') }}"></i>
                                             {{ ucfirst($transaction->type) }}
                                         </td>
                                         <td>{{ $transaction->transaction_date->format('M d') }}</td>
                                         <td>
-                                            <a href="{{ route('admin.transactions.show', $transaction->id) }}" 
+                                            <a href="{{ route('admin.transactions.show', $transaction->uuid) }}" 
                                                class="btn btn-sm btn-info">
                                                 <i class="fas fa-eye"></i>
                                             </a>

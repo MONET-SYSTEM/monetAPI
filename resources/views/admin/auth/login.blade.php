@@ -4,18 +4,78 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>MONET Admin | Log in</title>
+    
+    <!-- Favicon -->
+    <link rel="icon" type="image/svg+xml" href="{{ asset('images/favicon.svg') }}">
+    <link rel="alternate icon" href="{{ asset('favicon.ico') }}">
 
     <!-- Google Font: Source Sans Pro -->
     <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Source+Sans+Pro:300,400,400i,700&display=fallback">
     <!-- Font Awesome -->
-    <link rel="stylesheet" href="{{ asset('vendor/adminlte/plugins/fontawesome-free/css/all.min.css') }}">
-    <!-- Theme style -->
-    <link rel="stylesheet" href="{{ asset('vendor/adminlte/dist/css/adminlte.min.css') }}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">    <!-- Theme style -->
+    <link rel="stylesheet" href="{{ asset('vendor/adminlte/dist/css/adminlte.min.css') }}">    <!-- Custom styles -->
+    <style>
+        .login-page {
+            background: #f4f4f4;
+            min-height: 100vh;
+        }
+        .login-box {
+            margin: 5% auto;
+            width: 400px;
+        }
+        .monet-logo {
+            filter: drop-shadow(0 4px 8px rgba(0,0,0,0.1));
+            transition: transform 0.3s ease;
+        }
+        .monet-logo:hover {
+            transform: scale(1.05);
+        }
+        .card {
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+            backdrop-filter: blur(10px);
+            background: rgba(255,255,255,0.95);
+        }
+        .login-card-body {
+            border-radius: 15px;
+            padding: 30px;
+        }
+        .btn-primary {
+            background: linear-gradient(45deg, #007bff, #0056b3);
+            border: none;
+            border-radius: 10px;
+            transition: all 0.3s ease;
+        }
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0,123,255,0.4);
+        }
+        .form-control {
+            border-radius: 10px;
+            border: 2px solid #e9ecef;
+            transition: border-color 0.3s ease;
+        }
+        .form-control:focus {
+            border-color: #007bff;
+            box-shadow: 0 0 0 0.2rem rgba(0,123,255,0.25);
+        }
+        .input-group-text {
+            border-radius: 10px;
+            background: linear-gradient(45deg, #f8f9fa, #e9ecef);
+            border: 2px solid #e9ecef;
+        }
+        .alert-danger {
+            border-radius: 10px;
+            background: linear-gradient(45deg, #f8d7da, #f5c6cb);
+            border: none;
+        }
+    </style>
 </head>
 <body class="hold-transition login-page">
-<div class="login-box">
-    <div class="login-logo">
-        <a href="#"><b>MONET</b> Admin</a>
+<div class="login-box">    <div class="login-logo">
+        <a href="#">
+            <img src="{{ asset('images/monet-admin-logo.svg') }}" alt="MONET Admin" class="img-fluid monet-logo" style="max-height: 80px;">
+        </a>
     </div>
     <!-- /.login-logo -->
     <div class="card">

@@ -15,6 +15,7 @@ use App\Http\Controllers\Api\NotificationApiController;
 Route::controller(AuthController::class)->group(function(){
     Route::post('/register', 'register')->name('api.auth.register');
     Route::post('/login', 'login')->name('api.auth.login');
+    Route::post('/google-signup', 'googleSignUp')->name('api.auth.google.signup');
     Route::post('/reset/otp', 'resetOtp')->name('api.auth.reset.otp');
     Route::post('/reset/password', 'resetPassword')->name('api.auth.reset.password'); 
 
