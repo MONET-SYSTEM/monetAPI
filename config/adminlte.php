@@ -402,6 +402,11 @@ return [
             'icon' => 'fas fa-user-shield',
         ],
         [
+            'text' => 'Sessions',
+            'url' => 'admin/sessions',
+            'icon' => 'fas fa-globe',
+        ],
+        [
             'text' => 'System Settings',
             'url' => 'admin/settings',
             'icon' => 'fas fa-cogs',

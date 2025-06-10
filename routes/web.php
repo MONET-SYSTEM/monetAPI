@@ -57,6 +57,13 @@ Route::prefix('admin')->group(function () {
         Route::post('settings/test-database', [App\Http\Controllers\Admin\AdminSettingsController::class, 'testDatabase'])->name('admin.settings.test-database');
         Route::post('settings/clear-cache', [App\Http\Controllers\Admin\AdminSettingsController::class, 'clearCache'])->name('admin.settings.clear-cache');
         
+        // Session Management
+        Route::get('sessions', [App\Http\Controllers\Admin\SessionController::class, 'index'])->name('admin.sessions.index');
+        Route::get('sessions/{session}', [App\Http\Controllers\Admin\SessionController::class, 'show'])->name('admin.sessions.show');
+        Route::delete('sessions/{session}', [App\Http\Controllers\Admin\SessionController::class, 'destroy'])->name('admin.sessions.destroy');
+        Route::delete('sessions-bulk/all', [App\Http\Controllers\Admin\SessionController::class, 'destroyAll'])->name('admin.sessions.destroy-all');
+        Route::delete('sessions-bulk/guests', [App\Http\Controllers\Admin\SessionController::class, 'destroyGuests'])->name('admin.sessions.destroy-guests');
+        
         // User Management (Admin only)
         Route::resource('users', UserController::class)->names([
             'index'   => 'admin.users.index',

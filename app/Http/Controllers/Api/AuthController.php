@@ -8,6 +8,7 @@ use App\Services\AuthService;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
 use Illuminate\Http\Request;
@@ -227,26 +228,72 @@ class AuthController extends Controller
     /**
      * Update current user password
      */
-    public function googleSignUp(Request $request)
-{
+    public function updatePassword(Request $request): Response 
+    {
+        // Validate request
+        $request->validate([
+            'current_password' => 'required|string|min:6',
+            'password' => 'required|string|min:6|confirmed',
+            'password_confirmation' => 'required|string|min:6',
+        ]);
+
+        /** @var User $user */
+        $user = Auth::user();
+        
+        // Check if current password is correct
+        if (!Hash::check($request->current_password, $user->password)) {
+            return response([
+                'message' => 'Current password is incorrect',
+                'errors' => [
+                    'current_password' => ['Current password is incorrect']
+                ]
+            ], 422);
+        }
+
+        // Update password
+        $user->update([
+            'password' => Hash::make($request->password)
+        ]);
+
+        return response([
+            'message' => 'Password updated successfully'
+        ], 200);
+    }
+    
+    /**
+     * Handle Google Sign Up
+     */
+    public function googleSignUp(Request $request){
     try {
         $validator = Validator::make($request->all(), [
-            'id_token' => 'required|string',
+            'id_token' => 'required_without:access_token|string',
+            'access_token' => 'required_without:id_token|string',
         ]);
 
         if ($validator->fails()) {
             return response()->json([
                 'success' => false,
-                'message' => 'Validation failed',
+                'message' => 'Validation failed. Please provide either id_token or access_token.',
                 'errors' => $validator->errors()
             ], 422);
         }
 
-        // Verify Google ID Token directly with Google's tokeninfo endpoint
-        $idToken = $request->id_token;
-        $response = Http::get('https://oauth2.googleapis.com/tokeninfo', [
-            'id_token' => $idToken
-        ]);
+        // Get the token (prefer id_token, fallback to access_token)
+        $token = $request->id_token ?? $request->access_token;
+        $tokenType = $request->id_token ? 'id_token' : 'access_token';
+
+        // Verify Google Token
+        if ($tokenType === 'id_token') {
+            // Verify ID Token using tokeninfo endpoint
+            $response = Http::get('https://oauth2.googleapis.com/tokeninfo', [
+                'id_token' => $token
+            ]);
+        } else {
+            // Verify Access Token using tokeninfo endpoint
+            $response = Http::get('https://oauth2.googleapis.com/tokeninfo', [
+                'access_token' => $token
+            ]);
+        }
 
         if (!$response->successful()) {
             return response()->json([
@@ -257,16 +304,30 @@ class AuthController extends Controller
 
         $googleUser = $response->json();
 
-        // Verify the token is for your app (optional but recommended)
-        $expectedAudiences = [
-            config('services.google.android_client_id'), // Your Android client ID
-            config('services.google.client_id'), // Your web client ID (if you have one)
+        // Debug: Log the token details for troubleshooting
+        Log::info('Google Token Debug', [
+            'audience' => $googleUser['aud'] ?? 'not_provided',
+            'issuer' => $googleUser['iss'] ?? 'not_provided',
+            'expected_audience' => config('services.google.android_client_id'),
+        ]);
+
+        // Verify the token is for your Flutter app
+        $tokenAudience = $googleUser['aud'] ?? '';
+        
+        // Accept multiple possible client IDs from your Firebase project
+        $validAudiences = [
+            '167138283065-bmvbrj0esp9290mh9j65uhmssr6agioo.apps.googleusercontent.com', // Android client
+            '167138283065-omjm4amr3ko1q887uv3keu17opj7pl6i.apps.googleusercontent.com', // Web client
         ];
         
-        if (!in_array($googleUser['aud'] ?? '', array_filter($expectedAudiences))) {
+        if (!in_array($tokenAudience, $validAudiences)) {
             return response()->json([
                 'success' => false,
-                'message' => 'Token not issued for this application'
+                'message' => 'Token not issued for this application',
+                'debug' => [
+                    'received_audience' => $tokenAudience,
+                    'expected_audiences' => $validAudiences
+                ]
             ], 401);
         }
 
@@ -297,8 +358,10 @@ class AuthController extends Controller
         return response()->json([
             'success' => true,
             'message' => 'Google authentication successful',
-            'user' => new UserResource($user),
-            'token' => $token
+            'result' => [
+                'user' => new UserResource($user),
+                'token' => $token
+            ]
         ]);
 
     } catch (\Exception $e) {
@@ -307,8 +370,8 @@ class AuthController extends Controller
             'message' => 'Google authentication failed',
             'error' => $e->getMessage()
         ], 500);
-        }
     }
+}
     
     /**
      * Handle Google Login (Existing Users Only)
@@ -317,22 +380,34 @@ class AuthController extends Controller
     {
         try {
             $validator = Validator::make($request->all(), [
-                'id_token' => 'required|string',
+                'id_token' => 'required_without:access_token|string',
+                'access_token' => 'required_without:id_token|string',
             ]);
 
             if ($validator->fails()) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Validation failed',
+                    'message' => 'Validation failed. Please provide either id_token or access_token.',
                     'errors' => $validator->errors()
                 ], 422);
             }
 
-            // Verify Google ID Token
-            $idToken = $request->id_token;
-            $response = Http::get('https://oauth2.googleapis.com/tokeninfo', [
-                'id_token' => $idToken
-            ]);
+            // Get the token (prefer id_token, fallback to access_token)
+            $token = $request->id_token ?? $request->access_token;
+            $tokenType = $request->id_token ? 'id_token' : 'access_token';
+
+            // Verify Google Token
+            if ($tokenType === 'id_token') {
+                // Verify ID Token using tokeninfo endpoint
+                $response = Http::get('https://oauth2.googleapis.com/tokeninfo', [
+                    'id_token' => $token
+                ]);
+            } else {
+                // Verify Access Token using tokeninfo endpoint
+                $response = Http::get('https://oauth2.googleapis.com/tokeninfo', [
+                    'access_token' => $token
+                ]);
+            }
 
             if (!$response->successful()) {
                 return response()->json([
@@ -343,16 +418,30 @@ class AuthController extends Controller
 
             $googleUser = $response->json();
 
-            // Verify token audience
-            $expectedAudiences = [
-                config('services.google.android_client_id'),
-                config('services.google.client_id'),
+            // Debug: Log the token details for troubleshooting
+            Log::info('Google Token Debug - Login', [
+                'audience' => $googleUser['aud'] ?? 'not_provided',
+                'issuer' => $googleUser['iss'] ?? 'not_provided',
+                'expected_audience' => config('services.google.android_client_id'),
+            ]);
+
+            // Verify token audience (Flutter app)
+            $tokenAudience = $googleUser['aud'] ?? '';
+            
+            // Accept multiple possible client IDs from your Firebase project
+            $validAudiences = [
+                '167138283065-bmvbrj0esp9290mh9j65uhmssr6agioo.apps.googleusercontent.com', // Android client
+                '167138283065-omjm4amr3ko1q887uv3keu17opj7pl6i.apps.googleusercontent.com', // Web client
             ];
             
-            if (!in_array($googleUser['aud'] ?? '', array_filter($expectedAudiences))) {
+            if (!in_array($tokenAudience, $validAudiences)) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Token not issued for this application'
+                    'message' => 'Token not issued for this application',
+                    'debug' => [
+                        'received_audience' => $tokenAudience,
+                        'expected_audiences' => $validAudiences
+                    ]
                 ], 401);
             }
 
@@ -379,8 +468,10 @@ class AuthController extends Controller
             return response()->json([
                 'success' => true,
                 'message' => 'Google login successful',
-                'user' => new UserResource($user),
-                'token' => $token
+                'result' => [
+                    'user' => new UserResource($user),
+                    'token' => $token
+                ]
             ]);
 
         } catch (\Exception $e) {
@@ -399,22 +490,34 @@ class AuthController extends Controller
     {
         try {
             $validator = Validator::make($request->all(), [
-                'id_token' => 'required|string',
+                'id_token' => 'required_without:access_token|string',
+                'access_token' => 'required_without:id_token|string',
             ]);
 
             if ($validator->fails()) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Validation failed',
+                    'message' => 'Validation failed. Please provide either id_token or access_token.',
                     'errors' => $validator->errors()
                 ], 422);
             }
 
-            // Verify Google ID Token
-            $idToken = $request->id_token;
-            $response = Http::get('https://oauth2.googleapis.com/tokeninfo', [
-                'id_token' => $idToken
-            ]);
+            // Get the token (prefer id_token, fallback to access_token)
+            $token = $request->id_token ?? $request->access_token;
+            $tokenType = $request->id_token ? 'id_token' : 'access_token';
+
+            // Verify Google Token
+            if ($tokenType === 'id_token') {
+                // Verify ID Token using tokeninfo endpoint
+                $response = Http::get('https://oauth2.googleapis.com/tokeninfo', [
+                    'id_token' => $token
+                ]);
+            } else {
+                // Verify Access Token using tokeninfo endpoint
+                $response = Http::get('https://oauth2.googleapis.com/tokeninfo', [
+                    'access_token' => $token
+                ]);
+            }
 
             if (!$response->successful()) {
                 return response()->json([
@@ -425,16 +528,30 @@ class AuthController extends Controller
 
             $googleUser = $response->json();
 
-            // Verify token audience
-            $expectedAudiences = [
-                config('services.google.android_client_id'),
-                config('services.google.client_id'),
+            // Debug: Log the token details for troubleshooting
+            Log::info('Google Token Debug - Auth', [
+                'audience' => $googleUser['aud'] ?? 'not_provided',
+                'issuer' => $googleUser['iss'] ?? 'not_provided',
+                'expected_audience' => config('services.google.android_client_id'),
+            ]);
+
+            // Verify token audience (Flutter app)
+            $tokenAudience = $googleUser['aud'] ?? '';
+            
+            // Accept multiple possible client IDs from your Firebase project
+            $validAudiences = [
+                '167138283065-bmvbrj0esp9290mh9j65uhmssr6agioo.apps.googleusercontent.com', // Android client
+                '167138283065-omjm4amr3ko1q887uv3keu17opj7pl6i.apps.googleusercontent.com', // Web client
             ];
             
-            if (!in_array($googleUser['aud'] ?? '', array_filter($expectedAudiences))) {
+            if (!in_array($tokenAudience, $validAudiences)) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Token not issued for this application'
+                    'message' => 'Token not issued for this application',
+                    'debug' => [
+                        'received_audience' => $tokenAudience,
+                        'expected_audiences' => $validAudiences
+                    ]
                 ], 401);
             }
 
@@ -468,8 +585,10 @@ class AuthController extends Controller
             return response()->json([
                 'success' => true,
                 'message' => $isNewUser ? 'Google signup successful' : 'Google login successful',
-                'user' => new UserResource($user),
-                'token' => $token,
+                'result' => [
+                    'user' => new UserResource($user),
+                    'token' => $token
+                ],
                 'is_new_user' => $isNewUser
             ]);
 

@@ -31,6 +31,21 @@ Route::controller(AuthController::class)->group(function(){
     Route::put('/profile/password', 'updatePassword')->name('api.auth.profile.password')->middleware('auth:sanctum');
 });
 
+// Debug route for testing API communication
+Route::post('/test-google-auth', function (Request $request) {
+    return response()->json([
+        'success' => true,
+        'message' => 'API endpoint is working',
+        'received_data' => $request->all(),
+        'headers' => [
+            'content-type' => $request->header('Content-Type'),
+            'accept' => $request->header('Accept'),
+        ],
+        'method' => $request->method(),
+        'timestamp' => now()->toISOString(),
+    ]);
+});
+
 // Routes for Currency using route::post in POSTMAN API
 Route::controller(CurrencyController::class)->group(function(){
     Route::get('/currency', 'index')->name('api.currency.index')->middleware('auth:sanctum');
