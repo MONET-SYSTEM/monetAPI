@@ -112,6 +112,7 @@ Route::controller(NotificationApiController::class)->group(function () {
     Route::put('/notification/{uuid}/read', 'markAsRead')->name('api.notification.read')->middleware('auth:sanctum');
     Route::put('/notification/mark-all-read', 'markAllAsRead')->name('api.notification.mark.all.read')->middleware('auth:sanctum');
     Route::delete('/notification/{uuid}', 'destroy')->name('api.notification.destroy')->middleware('auth:sanctum');
+    Route::delete('/notification/delete-all', 'deleteAllNotifications')->name('api.notification.delete.all')->middleware('auth:sanctum');
 });
 
 

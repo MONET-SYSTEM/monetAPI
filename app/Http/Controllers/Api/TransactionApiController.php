@@ -10,15 +10,23 @@ use App\Models\Transaction;
 use App\Models\Currency;
 use App\Services\TransactionService;
 use App\Services\ExchangeRateService;
+use App\Services\ExpenseNotificationService;
+use App\Services\TransferNotificationService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Validator;
 
 class TransactionApiController extends Controller
 {
-    protected $transactionService;    public function __construct(TransactionService $transactionService)
+    protected $transactionService;
+    protected $expenseNotificationService;
+    protected $transferNotificationService;
+
+    public function __construct(TransactionService $transactionService)
     {
         $this->transactionService = $transactionService;
+        $this->expenseNotificationService = new ExpenseNotificationService();
+        $this->transferNotificationService = new TransferNotificationService();
         
         // Additional verification of authentication in controller constructor
         $this->middleware(function ($request, $next) {
@@ -177,6 +185,12 @@ class TransactionApiController extends Controller
             
             // Load relationships for the resource
             $transaction->load(['account', 'category']);
+            
+            // Send expense notifications if this is an expense transaction
+            if ($transaction->type === 'expense') {
+                $this->expenseNotificationService->sendExpenseRecordedNotification($transaction);
+                $this->expenseNotificationService->sendLargeExpenseNotification($transaction);
+            }
             
             return response()->json([
                 'status' => 'success',
@@ -342,7 +356,18 @@ class TransactionApiController extends Controller
             
             // Load relationships
             $updated->load(['account', 'category']);
-              return response()->json([
+            
+            // Send expense notification if this is an expense transaction
+            if ($updated->type === 'expense') {
+                $this->expenseNotificationService->sendExpenseUpdatedNotification($updated);
+            }
+            
+            // Send transfer notification if this is a transfer transaction
+            if ($updated->type === 'transfer') {
+                $this->transferNotificationService->sendTransferUpdatedNotification($updated);
+            }
+              
+            return response()->json([
                 'status' => 'success',
                 'message' => 'Transaction updated successfully',
                 'data' => new \App\Http\Resources\TransactionResource($updated)
@@ -385,8 +410,25 @@ class TransactionApiController extends Controller
                 ], 404);
             }
             
+            // Store transaction data for notification before deletion
+            $isExpense = $transaction->type === 'expense';
+            $isTransfer = $transaction->type === 'transfer';
+            $transactionAmount = $transaction->amount;
+            $accountName = $transaction->account->name;
+            $userId = $transaction->account->user_id;
+            
             // Delete the transaction using the service
             $this->transactionService->deleteTransaction($transaction);
+            
+            // Send expense notification if this was an expense transaction
+            if ($isExpense) {
+                $this->expenseNotificationService->sendExpenseDeletedNotification($transactionAmount, $accountName, $userId);
+            }
+            
+            // Send transfer notification if this was a transfer transaction
+            if ($isTransfer) {
+                $this->transferNotificationService->sendTransferDeletedNotification($transactionAmount, $accountName, $userId);
+            }
             
             return response()->json([
                 'status' => 'success',
@@ -547,6 +589,11 @@ class TransactionApiController extends Controller
             // Create the transfer using the service
             $result = $this->transactionService->createTransfer($transferData);
             
+            // Send transfer notifications
+            $user = Auth::user();
+            $this->transferNotificationService->sendTransferCreatedNotification($result, $user);
+            $this->transferNotificationService->sendLargeTransferNotification($result, $user);
+            
             return response()->json([
                 'status' => 'success',
                 'message' => 'Transfer created successfully',
@@ -665,6 +712,11 @@ class TransactionApiController extends Controller
             
             // Create the currency transfer using the service
             $result = $this->transactionService->createCurrencyTransfer($transferData);
+            
+            // Send currency transfer notifications
+            $user = Auth::user();
+            $this->transferNotificationService->sendCurrencyTransferCreatedNotification($result, $user);
+            $this->transferNotificationService->sendLargeTransferNotification($result, $user);
             
             return response()->json([
                 'status' => 'success',

@@ -220,6 +220,7 @@ GET    /api/notification/unread-count      # Get unread count
 PUT    /api/notification/{uuid}/read       # Mark as read
 PUT    /api/notification/mark-all-read     # Mark all as read
 DELETE /api/notification/{uuid}            # Delete notification
+DELETE /api/notification/delete-all        # Delete all notifications
 ```
 
 ## 🛡️ Admin Panel

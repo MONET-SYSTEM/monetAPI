@@ -136,4 +136,28 @@ class NotificationApiController extends Controller
             ], 500);
         }
     }
+
+    /**
+     * Delete all notifications for the authenticated user
+     */
+    public function deleteAllNotifications()
+    {
+        try {
+            $deletedCount = Notification::where('user_id', Auth::id())->delete();
+
+            return response()->json([
+                'status' => 'success',
+                'message' => "All notifications deleted successfully",
+                'data' => [
+                    'deleted_count' => $deletedCount
+                ]
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Failed to delete all notifications',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
 }

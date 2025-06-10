@@ -8,6 +8,8 @@ use App\Models\Category;
 use App\Models\Transaction;
 use App\Services\TransactionService;
 use App\Services\ExchangeRateService;
+use App\Services\ExpenseNotificationService;
+use App\Services\TransferNotificationService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -15,11 +17,17 @@ use Illuminate\Support\Facades\Validator;
 
 class TransactionController extends Controller
 {
-    protected $transactionService;    public function __construct(TransactionService $transactionService)
+    protected $transactionService;
+    protected $expenseNotificationService;
+    protected $transferNotificationService;
+
+    public function __construct(TransactionService $transactionService)
     {
         $this->middleware('admin');
         $this->transactionService = $transactionService;
-    }    /**
+        $this->expenseNotificationService = new ExpenseNotificationService();
+        $this->transferNotificationService = new TransferNotificationService();
+    }/**
      * Display a listing of the transactions.
      */
     public function index(Request $request)
@@ -114,8 +122,7 @@ class TransactionController extends Controller
                 ->withInput();
         }
         
-        try {
-            // Create the transaction directly
+        try {            // Create the transaction directly
             $transaction = Transaction::create([
                 'account_id' => $request->account_id,
                 'amount' => $request->amount,
@@ -126,6 +133,13 @@ class TransactionController extends Controller
                 'is_reconciled' => $request->is_reconciled ?? false,
                 'reference' => $request->reference,
             ]);
+            
+            // Send expense notifications if this is an expense transaction
+            if ($transaction->type === 'expense') {
+                $transaction->load(['account', 'category']); // Load relationships for notifications
+                $this->expenseNotificationService->sendExpenseRecordedNotification($transaction);
+                $this->expenseNotificationService->sendLargeExpenseNotification($transaction);
+            }
             
             return redirect()->route('admin.transactions.index')
                 ->with('success', 'Transaction created successfully.');
@@ -194,11 +208,21 @@ class TransactionController extends Controller
             return redirect()->route('admin.transactions.edit', $transaction)
                 ->withErrors($validator)
                 ->withInput();
-        }
-        
-        try {
+        }        try {
             // Update the transaction using the service
             $transaction = $this->transactionService->updateTransaction($transaction, $request->all());
+            
+            // Send expense notification if this is an expense transaction
+            if ($transaction->type === 'expense') {
+                $transaction->load(['account', 'category']); // Load relationships for notifications
+                $this->expenseNotificationService->sendExpenseUpdatedNotification($transaction);
+            }
+            
+            // Send transfer notification if this is a transfer transaction
+            if ($transaction->type === 'transfer') {
+                $transaction->load(['account', 'category']); // Load relationships for notifications
+                $this->transferNotificationService->sendTransferUpdatedNotification($transaction);
+            }
             
             return redirect()->route('admin.transactions.index')
                 ->with('success', 'Transaction updated successfully.');
@@ -209,13 +233,29 @@ class TransactionController extends Controller
         }
     }    /**
      * Remove the specified transaction from storage.
-     */
-    public function destroy(Transaction $transaction)
+     */    public function destroy(Transaction $transaction)
     {
         // Admin can delete any transaction without user authorization
         try {
+            // Store transaction data for notification before deletion
+            $isExpense = $transaction->type === 'expense';
+            $isTransfer = $transaction->type === 'transfer';
+            $transactionAmount = $transaction->amount;
+            $accountName = $transaction->account->name;
+            $userId = $transaction->account->user_id;
+            
             // Delete the transaction using the service
             $this->transactionService->deleteTransaction($transaction);
+            
+            // Send expense notification if this was an expense transaction
+            if ($isExpense) {
+                $this->expenseNotificationService->sendExpenseDeletedNotification($transactionAmount, $accountName, $userId);
+            }
+            
+            // Send transfer notification if this was a transfer transaction
+            if ($isTransfer) {
+                $this->transferNotificationService->sendTransferDeletedNotification($transactionAmount, $accountName, $userId);
+            }
             
             return redirect()->route('admin.transactions.index')
                 ->with('success', 'Transaction deleted successfully.');
@@ -223,7 +263,7 @@ class TransactionController extends Controller
             return redirect()->route('admin.transactions.index')
                 ->with('error', 'Error deleting transaction: ' . $e->getMessage());
         }
-    }    /**
+    }/**
      * Display transaction statistics and analytics.
      */
     public function statistics(Request $request)
@@ -350,8 +390,8 @@ class TransactionController extends Controller
                 ->withErrors($validator)
                 ->withInput();
         }
-        
-        try {
+          try {
+            $result = null;
             if ($isCurrencyTransfer) {
                 if ($request->use_real_time_rate ?? false) {
                     // Use real-time exchange rate for different currency transfer
@@ -385,6 +425,11 @@ class TransactionController extends Controller
                         number_format($request->destination_amount / $request->amount, 4) . ' ' . 
                         $toAccount->currency->code;
                 }
+                
+                // Send currency transfer notifications
+                $user = Auth::user();
+                $this->transferNotificationService->sendCurrencyTransferCreatedNotification($result, $user);
+                $this->transferNotificationService->sendLargeTransferNotification($result, $user);
             } else {
                 // Same currency transfer
                 $result = $this->transactionService->createTransfer([
@@ -395,6 +440,11 @@ class TransactionController extends Controller
                     'transaction_date' => $request->transaction_date,
                     'is_reconciled' => $request->is_reconciled ?? false,
                 ]);
+                
+                // Send transfer notifications
+                $user = Auth::user();
+                $this->transferNotificationService->sendTransferCreatedNotification($result, $user);
+                $this->transferNotificationService->sendLargeTransferNotification($result, $user);
                 
                 $message = 'Transfer completed successfully.';
             }
@@ -476,9 +526,13 @@ class TransactionController extends Controller
                 'is_reconciled' => $request->is_reconciled ?? false,
                 'reference' => $request->reference
             ];
-            
-            // Create the transfer using the service
+              // Create the transfer using the service
             $result = $this->transactionService->createTransfer($transferData);
+            
+            // Send transfer notifications
+            $user = Auth::user();
+            $this->transferNotificationService->sendTransferCreatedNotification($result, $user);
+            $this->transferNotificationService->sendLargeTransferNotification($result, $user);
             
             return response()->json([
                 'status' => 'success',
@@ -595,9 +649,13 @@ class TransactionController extends Controller
                 'is_reconciled' => $request->is_reconciled ?? false,
                 'reference' => $request->reference
             ];
-            
-            // Create the currency transfer using the service
+              // Create the currency transfer using the service
             $result = $this->transactionService->createCurrencyTransfer($transferData);
+            
+            // Send currency transfer notifications
+            $user = Auth::user();
+            $this->transferNotificationService->sendCurrencyTransferCreatedNotification($result, $user);
+            $this->transferNotificationService->sendLargeTransferNotification($result, $user);
             
             return response()->json([
                 'status' => 'success',
